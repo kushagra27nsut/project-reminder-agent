@@ -1,0 +1,17 @@
+node_modules/
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Local runtime data
+data/*.json
+uploads/
+*.log
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RemindAI Agent — Intelligent Project Notification Platform</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <!-- 3D Interactive WebGL Quantum AI Background Canvas -->
+  <canvas id="bg-3d-canvas"></canvas>
+
+  <!-- Ambient background glow spheres -->
+  <div class="glow-orb orb-1"></div>
+  <div class="glow-orb orb-2"></div>
+  <div class="glow-orb orb-3"></div>
+
+  <!-- Authentication Overlay Portal -->
+  <div id="login-portal" class="login-portal-overlay hidden">
+    <div class="login-card glass-card animate-pop">
+      <span class="close-login-modal" id="btnCloseLoginPortal" title="Close Modal">&times;</span>
+      
+      <div class="login-header">
+        <div class="login-badge"><i class="fa-solid fa-shield-halved"></i> Multi-Tenant Workspace Auth</div>
+        <div class="logo-large">
+          <i class="fa-solid fa-wand-magic-sparkles logo-icon"></i>
+          <span>Remind<span class="logo-highlight">AI</span> Agent</span>
+        </div>
+        <p class="login-subtitle">Sign in with ID & Password or Google SSO to access your isolated workspace & restore your saved projects.</p>
+      </div>
+
+      <!-- Auth Mode Tabs -->
+      <div class="auth-mode-tabs">
+        <button class="auth-tab-btn active" id="btnTabLogin">Sign In</button>
+        <button class="auth-tab-btn" id="btnTabRegister">Create Account</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="auth-login-form" class="auth-form glow-form">
+        <div id="saved-account-box" class="saved-account-box hidden">
+          <div>
+            <span class="saved-label">Saved account</span>
+            <strong id="saved-account-name">Guest</strong>
+            <small id="saved-account-email">No account saved</small>
+          </div>
+          <button type="button" id="btnContinueSaved" class="btn btn-secondary btn-sm">
+            <i class="fa-solid fa-circle-arrow-right"></i> Continue
+          </button>
+        </div>
+        <div class="form-group">
+          <label for="login-email">Account ID / Email</label>
+          <input type="email" id="login-email" placeholder="user@company.com" required>
+        </div>
+        <div class="form-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-glow">
+          <i class="fa-solid fa-right-to-bracket"></i> Sign In to Workspace
+        </button>
+        <button type="button" id="btnShowForgotPassword" class="link-button">
+          <i class="fa-solid fa-key"></i> Forgot or set password
+        </button>
+      </form>
+
+      <form id="auth-forgot-form" class="auth-form glow-form hidden">
+        <div class="form-group">
+          <label for="forgot-email">Account Email</label>
+          <input type="email" id="forgot-email" placeholder="user@company.com" required>
+        </div>
+        <div class="form-group">
+          <label for="forgot-password">New Password</label>
+          <input type="password" id="forgot-password" placeholder="At least 6 characters" minlength="6" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-glow">
+          <i class="fa-solid fa-rotate-right"></i> Reset Password
+        </button>
+        <button type="button" id="btnBackToLogin" class="link-button">
+          <i class="fa-solid fa-arrow-left"></i> Back to sign in
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="auth-register-form" class="auth-form glow-form hidden">
+        <div class="form-group">
+          <label for="reg-name">Full Name</label>
+          <input type="text" id="reg-name" placeholder="Alex River" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-email">Work Email</label>
+          <input type="email" id="reg-email" placeholder="alex@company.com" required>
+        </div>
+        <div class="form-group">
+          <label for="reg-password">Set Password</label>
+          <input type="password" id="reg-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-glow">
+          <i class="fa-solid fa-user-plus"></i> Create Workspace Account
+        </button>
+      </form>
+
+      <div class="auth-divider"><span>or sign in with SSO</span></div>
+
+      <div class="google-auth-box">
+        <button id="btnGoogleSignIn" class="btn-google">
+          <svg class="google-icon" viewBox="0 0 24 24">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+      </div>
+
+      <div class="login-footer">
+        <i class="fa-solid fa-lock"></i> Protected by Isolated Multi-Tenant Workspace Security
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Google SSO Account Modal -->
+  <div id="google-sso-modal" class="modal">
+    <div class="modal-content glass-card animate-pop" style="max-width: 420px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <svg class="google-icon" viewBox="0 0 24 24" style="width:24px; height:24px;">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+          </svg>
+          <h3 style="font-size:1.1rem; font-weight:700;">Google Sign-In Authentication</h3>
+        </div>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 16px;">Select or enter your Google Account email to authorize access.</p>
+        <div id="google-saved-account" class="saved-account-box hidden" style="margin-bottom:16px;">
+          <div>
+            <span class="saved-label">Last Google account</span>
+            <strong id="google-saved-name">Guest</strong>
+            <small id="google-saved-email">No account saved</small>
+          </div>
+          <button type="button" id="btnGoogleContinueSaved" class="btn btn-secondary btn-sm">
+            <i class="fa-brands fa-google"></i> Continue
+          </button>
+        </div>
+        
+        <form id="google-account-form" class="glow-form">
+          <div class="form-group">
+            <label for="google-account-email">Google Email Address</label>
+            <input type="email" id="google-account-email" placeholder="user@gmail.com or user@company.com" required>
+          </div>
+          <div class="form-group">
+            <label for="google-account-name">Full Name</label>
+            <input type="text" id="google-account-name" placeholder="Google Display Name" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block btn-glow">
+            <i class="fa-brands fa-google"></i> Authorize & Sign In
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App Shell -->
+  <div class="app-container">
+    <header class="glass-navbar">
+      <div class="logo">
+        <i class="fa-solid fa-wand-magic-sparkles logo-icon"></i>
+        <span class="logo-text">Remind<span class="logo-highlight">AI</span></span>
+      </div>
+      <nav class="nav-links">
+        <a href="#" class="nav-item active" data-tab="dashboard"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+        <a href="#" class="nav-item" data-tab="timeline"><i class="fa-solid fa-calendar-days"></i> Projects</a>
+        <a href="#" class="nav-item" data-tab="team"><i class="fa-solid fa-users"></i> Subscribers</a>
+        <a href="#" class="nav-item" data-tab="ai-chat"><i class="fa-solid fa-robot"></i> AI Assistant</a>
+        <a href="#" class="nav-item" data-tab="logs"><i class="fa-solid fa-list-check"></i> Logs</a>
+        <a href="#" class="nav-item" data-tab="settings"><i class="fa-solid fa-gear"></i> Settings</a>
+      </nav>
+      <div class="nav-actions">
+        <button id="btnSimulateCron" class="btn btn-primary btn-glow">
+          <i class="fa-solid fa-rotate-right"></i> Run Cron Scan
+        </button>
+        
+        <div id="user-profile-pill" class="user-profile-pill" title="Click to Sign In or Switch Account">
+          <img id="user-avatar" src="https://ui-avatars.com/api/?name=Guest+User&background=00f2fe&color=fff" alt="User Avatar" class="user-avatar-img">
+          <span id="user-pill-name" class="user-pill-name">Guest</span>
+          <i class="fa-solid fa-arrow-right-to-bracket pill-caret"></i>
+        </div>
+
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- Dashboard -->
+      <section id="tab-dashboard" class="tab-content active">
+        <div class="dashboard-header animate-fade-in">
+          <div class="welcome-badge"><i class="fa-solid fa-circle-check"></i> Isolated Workspace Active</div>
+          <h1>Welcome, <span id="user-greeting">Guest</span></h1>
+          <p>Project Reminder Agent is monitoring your workspace dates and running background dispatches.</p>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric-card glass-card">
+            <div class="metric-icon icon-cyan"><i class="fa-solid fa-folder-open"></i></div>
+            <div class="metric-info">
+              <span class="metric-label">Workspace Projects</span>
+              <h2 id="metric-projects" class="metric-value">0</h2>
+            </div>
+          </div>
+          <div class="metric-card glass-card">
+            <div class="metric-icon icon-purple"><i class="fa-solid fa-users"></i></div>
+            <div class="metric-info">
+              <span class="metric-label">Subscribed Team</span>
+              <h2 id="metric-subscribers" class="metric-value">0</h2>
+            </div>
+          </div>
+          <div class="metric-card glass-card">
+            <div class="metric-icon icon-pink"><i class="fa-solid fa-paper-plane"></i></div>
+            <div class="metric-info">
+              <span class="metric-label">Notifications Sent</span>
+              <h2 id="metric-reminders" class="metric-value">0</h2>
+            </div>
+          </div>
+          <div class="metric-card glass-card">
+            <div class="metric-icon icon-yellow"><i class="fa-solid fa-hourglass-half"></i></div>
+            <div class="metric-info">
+              <span class="metric-label">Next Milestone</span>
+              <h2 id="metric-countdown" class="metric-value">-</h2>
+            </div>
+          </div>
+        </div>
+
+        <div class="dashboard-layout">
+          <div class="layout-left">
+            <div class="glass-card upload-card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-cloud-arrow-up"></i> Upload Project Schedule</h3>
+                <p>Drag & drop Excel sheet (.xlsx) to bulk import workspace dates</p>
+              </div>
+              <div id="drop-zone" class="drop-zone">
+                <i class="fa-regular fa-file-excel drop-icon"></i>
+                <p>Drag Excel file here or <span>browse files</span></p>
+                <input type="file" id="file-input" accept=".xlsx" style="display:none">
+              </div>
+              <div id="upload-progress" class="progress-bar-container" style="display:none">
+                <div class="progress-bar">
+                  <div class="progress-fill"></div>
+                </div>
+                <div class="progress-status">Uploading schedule sheet...</div>
+              </div>
+              <div class="excel-help-box">
+                <h4><i class="fa-solid fa-circle-info"></i> Column Mapping Info</h4>
+                <p>Auto-detects: <strong>Project Name</strong> & <strong>Deadline Date</strong></p>
+                <a href="#" id="download-template-link" class="btn btn-text"><i class="fa-solid fa-download"></i> Download Template</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="layout-right">
+            <div class="glass-card logs-preview-card">
+              <div class="card-header">
+                <h3><i class="fa-solid fa-bell"></i> Live Reminders Stream</h3>
+                <button class="btn btn-text" data-tab-nav="logs">See all logs</button>
+              </div>
+              <div id="logs-preview-list" class="logs-preview-list">
+                <div class="empty-state">
+                  <i class="fa-regular fa-bell-slash"></i>
+                  <p>No activity logs recorded yet in your workspace.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Projects & Timeline -->
+      <section id="tab-timeline" class="tab-content">
+        <div class="section-header flex-header">
+          <div>
+            <h2>Workspace Projects & Timelines</h2>
+            <p>Track deadlines, invite collaborators, mark completed tasks, or remove projects.</p>
+          </div>
+          <button id="btnOpenAddProjectModal" class="btn btn-primary btn-glow">
+            <i class="fa-solid fa-plus"></i> New Project
+          </button>
+        </div>
+
+        <div class="glass-card project-timeline-card">
+          <div id="timeline-project-list" class="timeline-project-list">
+            <div class="empty-state">
+              <i class="fa-solid fa-calendar-xmark"></i>
+              <p>No workspace projects loaded. Upload an Excel sheet or click "New Project".</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Team Members -->
+      <section id="tab-team" class="tab-content">
+        <div class="section-header">
+          <h2>Team Subscribers</h2>
+          <p>Global members receiving automated dispatches starting 30 days before launch.</p>
+        </div>
+
+        <div class="team-layout">
+          <div class="team-form-card">
+            <div class="glass-card">
+              <h3><i class="fa-solid fa-user-plus"></i> Add Team Member</h3>
+              <form id="add-subscriber-form" class="glow-form">
+                <div class="form-group">
+                  <label for="sub-name">Full Name</label>
+                  <input type="text" id="sub-name" placeholder="Alex Rivers" required>
+                </div>
+                <div class="form-group">
+                  <label for="sub-email">Email Address</label>
+                  <input type="email" id="sub-email" placeholder="alex@company.com" required>
+                </div>
+                <div class="form-group">
+                  <label for="sub-phone">Phone Number (WhatsApp Optional)</label>
+                  <input type="tel" id="sub-phone" placeholder="+91 98765 XXXXX">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block btn-glow">
+                  <i class="fa-solid fa-check"></i> Register Subscriber
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div class="team-list-card">
+            <div class="glass-card">
+              <h3><i class="fa-solid fa-users-gear"></i> Active Notifications List</h3>
+              <div id="subscribers-list" class="subscribers-list">
+                <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Loading subscribers...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Chat -->
+      <section id="tab-ai-chat" class="tab-content">
+        <div class="section-header">
+          <h2>AI Agent Chat Assistant</h2>
+          <p>Query schedule dates, verify notification logic, or inspect project deadlines.</p>
+        </div>
+
+        <div class="glass-card chat-card">
+          <div class="chat-header">
+            <div class="chat-agent-info">
+              <div class="agent-avatar">
+                <i class="fa-solid fa-robot"></i>
+                <span class="avatar-status"></span>
+              </div>
+              <div>
+                <h4>Project RemindAI Agent</h4>
+                <p>Online | Continuous Date Monitor</p>
+              </div>
+            </div>
+            <button id="btnResetDB" class="btn btn-danger-outline btn-sm">
+              <i class="fa-solid fa-trash-can"></i> Clear Database
+            </button>
+          </div>
+          
+          <div id="chat-messages" class="chat-messages">
+            <div class="message agent">
+              <div class="message-content">
+                <p>Hello! I am your Project Reminder Agent. I monitor deadlines, filter completed tasks, and dispatch automated alerts.</p>
+                <p>How can I help you today?</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="chat-input-area">
+            <input type="text" id="chat-input-field" placeholder="Ask about projects list, active subscribers, or next milestone...">
+            <button id="chat-send-btn" class="btn btn-primary btn-icon"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Logs -->
+      <section id="tab-logs" class="tab-content">
+        <div class="section-header">
+          <h2>Notification Despatch Logs</h2>
+          <p>Real-time audit log of email, Slack, and WhatsApp reminders sent.</p>
+        </div>
+
+        <div class="glass-card logs-table-card">
+          <div class="table-container">
+            <table class="logs-table">
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Project Name</th>
+                  <th>Subscriber / Channel</th>
+                  <th>Milestone</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="logs-table-body">
+                <tr>
+                  <td colspan="6" class="text-center">No email dispatches recorded yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Settings & Admin Analytics -->
+      <section id="tab-settings" class="tab-content">
+        <div class="section-header">
+          <h2>Settings</h2>
+          <p>Manage your account profile, login identity, password, and session.</p>
+        </div>
+
+        <div class="settings-overview">
+          <div class="glass-card account-summary-card">
+            <div class="account-summary-avatar">
+              <img id="settings-user-avatar" src="https://ui-avatars.com/api/?name=Guest+User&background=00f2fe&color=fff" alt="Account Avatar">
+            </div>
+            <div>
+              <span class="settings-kicker">Signed in workspace</span>
+              <h3 id="settings-account-title">Guest</h3>
+              <p id="settings-account-email">Sign in to view and manage your workspace identity.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ ADMIN-ONLY BLOCK — host eyes only ═══ -->
+        <div id="admin-only-section" style="display:none;">
+
+          <!-- Live user counters -->
+          <div class="metrics-grid" style="margin-bottom:24px;">
+            <div class="metric-card glass-card">
+              <div class="metric-icon icon-purple"><i class="fa-solid fa-users"></i></div>
+              <div class="metric-info">
+                <span class="metric-label">Total Registered Users</span>
+                <h2 id="admin-total-users" class="metric-value">0</h2>
+              </div>
+            </div>
+            <div class="metric-card glass-card">
+              <div class="metric-icon icon-cyan"><i class="fa-solid fa-signal"></i></div>
+              <div class="metric-info">
+                <span class="metric-label">Live Active Users</span>
+                <h2 id="admin-live-users" class="metric-value">0</h2>
+              </div>
+            </div>
+          </div>
+
+          <!-- Registered user tracking table -->
+          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px;">
+            <h3><i class="fa-solid fa-users-viewfinder"></i> Registered User Tracking &amp; Activity Logs</h3>
+            <p style="color:var(--text-secondary); margin-bottom:12px;">Live stream of platform sign-ins and registered users.</p>
+            <div id="admin-user-list" class="admin-user-list">
+              <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching platform users...</div>
+            </div>
+          </div>
+
+          <!-- Notification Integration Keys — admin only -->
+          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px;">
+            <h3><i class="fa-solid fa-sliders"></i> Notification Integration Keys</h3>
+            <p style="color:var(--text-secondary); margin-bottom:16px;">SMTP and Slack credentials for automated reminders. Visible only to the host.</p>
+            <form id="system-settings-form" class="glow-form">
+              <div class="settings-grid" style="gap:16px;">
+                <div class="form-group">
+                  <label for="setting-smtp-user">SMTP Email Account</label>
+                  <input type="email" id="setting-smtp-user" placeholder="agent@gmail.com">
+                </div>
+                <div class="form-group">
+                  <label for="setting-slack-url">Slack Incoming Webhook URL</label>
+                  <input type="url" id="setting-slack-url" placeholder="https://hooks.slack.com/services/...">
+                </div>
+              </div>
+              <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:8px;">
+                <i class="fa-solid fa-save"></i> Save Configuration
+              </button>
+            </form>
+          </div>
+
+        </div>
+        <!-- ═══ END ADMIN-ONLY BLOCK ═══ -->
+
+        <!-- User Profile — visible to all logged-in users -->
+        <div class="settings-grid">
+          <div class="glass-card settings-card">
+            <h3><i class="fa-solid fa-id-card"></i> User Profile</h3>
+            <form id="profile-settings-form" class="glow-form">
+              <div class="form-group">
+                <label for="setting-user-name">Username / Full Name</label>
+                <input type="text" id="setting-user-name" placeholder="Enter full name" required>
+              </div>
+              <div class="form-group">
+                <label for="setting-user-email">Login Email ID</label>
+                <input type="email" id="setting-user-email" placeholder="Enter email address" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Save Username & Email</button>
+            </form>
+          </div>
+
+          <!-- Session / Account Actions — visible to all -->
+          <div class="glass-card settings-card">
+            <h3><i class="fa-solid fa-circle-user"></i> Session &amp; Account</h3>
+            <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:20px;">You are currently signed in as <strong id="settings-session-name" style="color:var(--cyan)">Guest</strong>.</p>
+            <div style="display:flex; flex-direction:column; gap:12px;">
+              <button id="btnTriggerLoginPortal" class="btn btn-primary">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In / Switch Account
+              </button>
+              <button id="btnLogout" class="btn btn-danger-outline hidden">
+                <i class="fa-solid fa-power-off"></i> Logout
+              </button>
+            </div>
+          </div>
+
+          <div class="glass-card settings-card">
+            <h3><i class="fa-solid fa-key"></i> Password</h3>
+            <form id="change-password-form" class="glow-form">
+              <div class="form-group">
+                <label for="current-password">Current Password</label>
+                <input type="password" id="current-password" placeholder="Leave blank if this account used Google first">
+              </div>
+              <div class="form-group">
+                <label for="new-password">New Password</label>
+                <input type="password" id="new-password" placeholder="At least 6 characters" minlength="6" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-lock"></i> Change Password</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Credits Footer -->
+    <footer class="glass-footer compact-footer">
+      <div class="footer-compact-row">
+        <div class="footer-brand">
+          <i class="fa-solid fa-wand-magic-sparkles logo-icon"></i>
+          <span>Remind<span class="logo-highlight">AI</span> Agent</span>
+        </div>
+
+        <div class="footer-creator">
+          <span class="footer-meta-label"><i class="fa-solid fa-code-branch"></i> Architect & Creator:</span>
+          <strong>Made by — Kushagra Sharma</strong>
+          <span class="footer-sep">•</span>
+          <a href="mailto:kushagra.sharma.ug25@nsut.ac.in"><i class="fa-regular fa-envelope"></i> kushagra.sharma.ug25@nsut.ac.in</a>
+          <span class="footer-sep">•</span>
+          <a href="https://www.linkedin.com/in/kushagra-sharma-nsut" target="_blank"><i class="fa-brands fa-linkedin"></i> LinkedIn</a>
+        </div>
+
+        <div class="footer-honors">
+          <span class="honors-pill"><i class="fa-solid fa-award"></i> Special thanks to <strong>Dr. Sadhna Rajan</strong></span>
+        </div>
+      </div>
+      <div class="footer-bottom-mini">
+        <p>&copy; 2026 RemindAI Agent. Designed & Built for High-Performance Teams.</p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Manual New Project Modal -->
+  <div id="project-modal" class="modal">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-folder-plus"></i> Create New Project Reminder</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <form id="create-project-form" class="glow-form">
+          <div class="form-group">
+            <label for="new-proj-name">Project Title</label>
+            <input type="text" id="new-proj-name" placeholder="Mobile App Launch" required>
+          </div>
+          <div class="form-group">
+            <label for="new-proj-date">Target Launch Date</label>
+            <input type="date" id="new-proj-date" required>
+          </div>
+          <div class="form-group">
+            <label for="new-proj-desc">Description & Scope</label>
+            <textarea id="new-proj-desc" rows="3" placeholder="Key milestones and deliverable targets..."></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary btn-block"><i class="fa-solid fa-plus"></i> Add Project</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invite Team Member Modal -->
+  <div id="invite-modal" class="modal">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-user-plus"></i> Invite Team Member to Project</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p id="invite-project-title-display" class="modal-subtext"></p>
+        <form id="invite-team-form" class="glow-form">
+          <input type="hidden" id="invite-project-id">
+          <div class="form-group">
+            <label for="invite-email">Teammate Email Address</label>
+            <input type="email" id="invite-email" placeholder="teammate@company.com" required>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block"><i class="fa-solid fa-paper-plane"></i> Send Project Invitation</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Preview Modal -->
+  <div id="email-modal" class="modal">
+    <div class="modal-content glass-card">
+      <div class="modal-header">
+        <h3><i class="fa-solid fa-envelope-open-text"></i> Email Reminder Preview</h3>
+        <span class="close-modal">&times;</span>
+      </div>
+      <div class="modal-body">
+        <div class="email-headers">
+          <div><strong>To:</strong> <span id="modal-to"></span></div>
+          <div><strong>Subject:</strong> <span id="modal-subject"></span></div>
+          <div><strong>Sent:</strong> <span id="modal-date"></span></div>
+        </div>
+        <iframe id="email-preview-frame" class="email-preview-frame"></iframe>
+        <div class="modal-footer">
+          <a id="modal-ethereal-link" href="#" target="_blank" class="btn btn-primary"><i class="fa-solid fa-external-link"></i> View in Ethereal Mail Inbox</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
