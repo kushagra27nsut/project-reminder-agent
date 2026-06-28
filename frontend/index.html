@@ -58,7 +58,12 @@
         </div>
         <div class="form-group">
           <label for="login-password">Password</label>
-          <input type="password" id="login-password" placeholder="••••••••" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="login-password" placeholder="••••••••" required>
+            <button type="button" class="toggle-password-visibility" data-target="login-password">
+              <i class="fa-solid fa-eye-slash"></i>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block btn-glow">
           <i class="fa-solid fa-right-to-bracket"></i> Sign In to Workspace
@@ -75,7 +80,12 @@
         </div>
         <div class="form-group">
           <label for="forgot-password">New Password</label>
-          <input type="password" id="forgot-password" placeholder="At least 6 characters" minlength="6" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="forgot-password" placeholder="At least 6 characters" minlength="6" required>
+            <button type="button" class="toggle-password-visibility" data-target="forgot-password">
+              <i class="fa-solid fa-eye-slash"></i>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block btn-glow">
           <i class="fa-solid fa-rotate-right"></i> Reset Password
@@ -97,7 +107,12 @@
         </div>
         <div class="form-group">
           <label for="reg-password">Set Password</label>
-          <input type="password" id="reg-password" placeholder="••••••••" required>
+          <div class="password-input-wrapper">
+            <input type="password" id="reg-password" placeholder="••••••••" required>
+            <button type="button" class="toggle-password-visibility" data-target="reg-password">
+              <i class="fa-solid fa-eye-slash"></i>
+            </button>
+          </div>
         </div>
         <button type="submit" class="btn btn-primary btn-block btn-glow">
           <i class="fa-solid fa-user-plus"></i> Create Workspace Account
@@ -527,11 +542,21 @@
             <form id="change-password-form" class="glow-form">
               <div class="form-group">
                 <label for="current-password">Current Password</label>
-                <input type="password" id="current-password" placeholder="Leave blank if this account used Google first">
+                <div class="password-input-wrapper">
+                  <input type="password" id="current-password" placeholder="Leave blank if this account used Google first">
+                  <button type="button" class="toggle-password-visibility" data-target="current-password">
+                    <i class="fa-solid fa-eye-slash"></i>
+                  </button>
+                </div>
               </div>
               <div class="form-group">
                 <label for="new-password">New Password</label>
-                <input type="password" id="new-password" placeholder="At least 6 characters" minlength="6" required>
+                <div class="password-input-wrapper">
+                  <input type="password" id="new-password" placeholder="At least 6 characters" minlength="6" required>
+                  <button type="button" class="toggle-password-visibility" data-target="new-password">
+                    <i class="fa-solid fa-eye-slash"></i>
+                  </button>
+                </div>
               </div>
               <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-lock"></i> Change Password</button>
             </form>

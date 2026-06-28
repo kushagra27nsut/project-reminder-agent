@@ -5,6 +5,7 @@ import xlsx from 'xlsx';
 import cron from 'node-cron';
 import nodemailer from 'nodemailer';
 import fs from 'fs';
+import bcrypt from 'bcryptjs'; // Import bcryptjs for password hashing
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
@@ -42,10 +43,13 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 }
 
 // Database helper functions
-const getInitialDB = () => ({
-  users: [
-    { id: 'usr-1', name: 'Kushagra Sharma', email: 'kushagra.sharma.ug25@nsut.ac.in', password: 'password123', role: 'admin', createdAt: new Date().toISOString(), lastLoginAt: new Date().toISOString() }
-  ],
+const getInitialDB = () => {
+  const salt = bcrypt.genSaltSync(10);
+  const adminPassword = bcrypt.hashSync('password123', salt);
+  return {
+    users: [
+      { id: 'usr-1', name: 'Kushagra Sharma', email: 'kushagra.sharma.ug25@nsut.ac.in', password: adminPassword, role: 'admin', createdAt: new Date().toISOString(), lastLoginAt: new Date().toISOString() }
+    ],
   workspaces: {},
   projects: [],
   subscribers: [
@@ -59,7 +63,7 @@ const getInitialDB = () => ({
     twilioSid: process.env.TWILIO_ACCOUNT_SID || ''
   },
   logs: []
-});
+}};
 
 const readDB = () => {
   if (!fs.existsSync(DB_FILE)) {
@@ -81,27 +85,28 @@ const readDB = () => {
 
 const getContextDB = (req) => {
   const db = readDB();
-  const userEmail = (req.headers['x-user-email'] || req.query.userEmail || '').toLowerCase().trim();
-  if (userEmail && userEmail !== 'guest@remindai.io') {
-    if (!db.workspaces) db.workspaces = {};
-    if (!db.workspaces[userEmail]) {
-      db.workspaces[userEmail] = { projects: [], subscribers: [], logs: [] };
-      writeDB(db);
+  const authToken = req.headers['x-auth-token']; // Get auth token from header
+
+  if (authToken) {
+    const user = db.users.find(u => u.sessionToken === authToken);
+    if (!user || !db.workspaces[user.email]) {
+      return null; // No valid user or workspace for this token
     }
     return {
       db,
-      userEmail,
-      projects: db.workspaces[userEmail].projects,
-      subscribers: db.workspaces[userEmail].subscribers,
-      logs: db.workspaces[userEmail].logs,
+      userEmail: user.email, // Use email from the found user
+      projects: db.workspaces[user.email].projects,
+      subscribers: db.workspaces[user.email].subscribers,
+      logs: db.workspaces[user.email].logs,
       save: () => writeDB(db)
     };
   }
+  // Fallback for guest or invalid token
   return {
     db,
     userEmail: null,
     projects: db.projects || [],
-    subscribers: db.subscribers || [],
+    subscribers: db.subscribers || [], // Guest mode uses global subscribers
     logs: db.logs || [],
     save: () => writeDB(db)
   };
@@ -287,67 +292,23 @@ const sendTwilioWhatsApp = async (subscriber, project, diffDays) => {
   }
 };
 
-// Trigger reminders calculation and email dispatching logic
-const checkAndSendReminders = async (manual = false) => {
-  console.log(`[Reminder Check] Initiating check (Manual: ${manual})...`);
-  const db = readDB();
+const checkAndSendRemindersForWorkspace = async (workspace, workspaceEmail, db) => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-
-  const activeSubscribers = db.subscribers.filter(s => s.active);
-  if (activeSubscribers.length === 0) {
-    console.log('[Reminder Check] No active subscribers found.');
-    return { success: true, sentCount: 0, message: 'No active subscribers found.' };
-  }
-
   let sentCount = 0;
-  const newLogs = [];
-
-  for (const project of db.projects) {
-    if (!project.date || project.completed) {
-      console.log(`[Reminder Check] Skipping project "${project.name}" (Completed: ${project.completed}).`);
-      continue;
-    }
+  const activeSubscribers = workspace.subscribers ? workspace.subscribers.filter(s => s.active) : [];
+  if (activeSubscribers.length === 0) {
+    console.log(`[Workspace Check: ${workspaceEmail}] No active subscribers found.`);
+    return { success: true, sentCount: 0, message: 'No active subscribers in this workspace.' };
+  }
+  for (const project of workspace.projects || []) {
+    if (!project.date || project.completed) continue;
     const projDate = new Date(project.date);
     projDate.setHours(0, 0, 0, 0);
-
     const diffTime = projDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    // Define target reminder days: 30, 25, 20, 15, 10, 5, 0
     const reminderMilestones = [30, 25, 20, 15, 10, 5, 0];
-
     if (reminderMilestones.includes(diffDays)) {
-      // 1. Channel-wide Slack Webhook check
-      const slackAlreadySent = db.logs.some(
-        l => l.projectId === project.id && 
-             l.daysRemaining === diffDays && 
-             l.subscriberEmail === 'Slack Workspace' &&
-             l.status === 'success'
-      );
-
-      if (!slackAlreadySent && (process.env.SLACK_WEBHOOK_URL || (db.settings && db.settings.slackWebhook))) {
-        try {
-          const slackSuccess = await sendSlackNotification(project, diffDays);
-          if (slackSuccess) {
-            newLogs.push({
-              id: 'log-' + Math.random().toString(36).substr(2, 9),
-              projectId: project.id,
-              projectName: project.name,
-              projectDate: project.date,
-              subscriberEmail: 'Slack Workspace',
-              daysRemaining: diffDays,
-              sentAt: new Date().toISOString(),
-              status: 'success',
-              message: 'Sent notification successfully to Slack workspace channel.'
-            });
-            console.log(`[Reminder Check] Slack notification sent for "${project.name}"`);
-          }
-        } catch (slackErr) {
-          console.error('[Reminder Check] Slack hook failed:', slackErr);
-        }
-      }
-
       // Merge global subscribers with project-specific team members
       const projectRecipients = [...activeSubscribers];
       if (project.teamMembers && Array.isArray(project.teamMembers)) {
@@ -364,16 +325,14 @@ const checkAndSendReminders = async (manual = false) => {
         });
       }
 
-      // 2. Loop through recipients for Email & WhatsApp
       for (const subscriber of projectRecipients) {
         // --- Email Dispatch ---
-        const emailAlreadySent = db.logs.some(
+        const emailAlreadySent = (workspace.logs || []).some(
           l => l.projectId === project.id && 
                l.daysRemaining === diffDays && 
                l.subscriberEmail === subscriber.email &&
                l.status === 'success'
         );
-
         if (!emailAlreadySent) {
           const mailOptions = {
             from: '"Project RemindAI Agent" <agent@projectreminder.ai>',
@@ -399,8 +358,8 @@ const checkAndSendReminders = async (manual = false) => {
           try {
             const info = await transporter.sendMail(mailOptions);
             const previewUrl = nodemailer.getTestMessageUrl(info) || '#';
-            
-            newLogs.push({
+            if (!workspace.logs) workspace.logs = [];
+            workspace.logs.unshift({
               id: 'log-' + Math.random().toString(36).substr(2, 9),
               projectId: project.id,
               projectName: project.name,
@@ -413,10 +372,11 @@ const checkAndSendReminders = async (manual = false) => {
               message: `Successfully sent email notification.`
             });
             sentCount++;
-            console.log(`[Reminder Check] Email sent to ${subscriber.email} for "${project.name}" (Days: ${diffDays})`);
+            console.log(`[Workspace Check: ${workspaceEmail}] Email sent to ${subscriber.email} for "${project.name}" (Days: ${diffDays})`);
           } catch (mailErr) {
-            console.error(`[Reminder Check] Error sending email to ${subscriber.email}:`, mailErr);
-            newLogs.push({
+            console.error(`[Workspace Check: ${workspaceEmail}] Error sending email to ${subscriber.email}:`, mailErr);
+            if (!workspace.logs) workspace.logs = [];
+            workspace.logs.unshift({
               id: 'log-' + Math.random().toString(36).substr(2, 9),
               projectId: project.id,
               projectName: project.name,
@@ -429,10 +389,9 @@ const checkAndSendReminders = async (manual = false) => {
             });
           }
         }
-
         // --- Twilio WhatsApp Dispatch (If configured) ---
         if (subscriber.phone && process.env.TWILIO_ACCOUNT_SID) {
-          const waAlreadySent = db.logs.some(
+          const waAlreadySent = (workspace.logs || []).some(
             l => l.projectId === project.id && 
                  l.daysRemaining === diffDays && 
                  l.subscriberEmail === `${subscriber.email} (WhatsApp)` &&
@@ -443,7 +402,8 @@ const checkAndSendReminders = async (manual = false) => {
             try {
               const waSuccess = await sendTwilioWhatsApp(subscriber, project, diffDays);
               if (waSuccess) {
-                newLogs.push({
+                if (!workspace.logs) workspace.logs = [];
+                workspace.logs.unshift({
                   id: 'log-' + Math.random().toString(36).substr(2, 9),
                   projectId: project.id,
                   projectName: project.name,
@@ -454,11 +414,12 @@ const checkAndSendReminders = async (manual = false) => {
                   status: 'success',
                   message: `Successfully sent automated Twilio WhatsApp text to ${subscriber.phone}.`
                 });
-                console.log(`[Reminder Check] Twilio WhatsApp sent to ${subscriber.phone} for "${project.name}"`);
+                console.log(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp sent to ${subscriber.phone} for "${project.name}"`);
               }
             } catch (waErr) {
-              console.error('[Reminder Check] Twilio WhatsApp failed:', waErr);
-              newLogs.push({
+              console.error(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp failed:`, waErr);
+              if (!workspace.logs) workspace.logs = [];
+              workspace.logs.unshift({
                 id: 'log-' + Math.random().toString(36).substr(2, 9),
                 projectId: project.id,
                 projectName: project.name,
@@ -475,47 +436,62 @@ const checkAndSendReminders = async (manual = false) => {
       }
     }
   }
-
-  if (newLogs.length > 0) {
-    db.logs = [...newLogs, ...db.logs];
-    writeDB(db);
-  }
-
   return { success: true, sentCount, message: `Successfully ran check. Sent ${sentCount} reminders.` };
+};
+
+// Trigger reminders calculation for all workspaces (for CRON)
+const checkAndSendRemindersCron = async () => {
+  console.log(`[CRON] Initiating daily check for all workspaces...`);
+  const db = readDB();
+  let totalSent = 0;
+  for (const workspaceEmail in db.workspaces) {
+    if (db.workspaces.hasOwnProperty(workspaceEmail)) {
+      console.log(`[CRON] Processing workspace: ${workspaceEmail}`);
+      const workspace = db.workspaces[workspaceEmail];
+      const result = await checkAndSendRemindersForWorkspace(workspace, workspaceEmail, db);
+      if (result && result.sentCount > 0) {
+        totalSent += result.sentCount;
+      }
+    }
+  }
+  writeDB(db); // Save all accumulated changes
+  console.log(`[CRON] Daily check complete. Total reminders sent across all workspaces: ${totalSent}.`);
 };
 
 // API Endpoints
 
 // Authentication Endpoints
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email, and password are required.' });
+  if (!name || !email || !password || password.length < 6) {
+    return res.status(400).json({ error: 'Name, email, and password (min 6 chars) are required.' });
   }
   const db = readDB();
   const cleanEmail = email.trim().toLowerCase();
   if (db.users.some(u => u.email === cleanEmail)) {
     return res.status(400).json({ error: 'Account with this email already exists.' });
   }
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const sessionToken = Math.random().toString(36).substr(2) + Date.now().toString(36);
   const newUser = {
     id: 'usr-' + Math.random().toString(36).substr(2, 9),
     name: name.trim(),
     email: cleanEmail,
-    password: password,
+    password: hashedPassword,
     role: 'user',
     createdAt: new Date().toISOString(),
     lastLoginAt: new Date().toISOString(),
-    activeSession: true
+    sessionToken: sessionToken
   };
   db.users.push(newUser);
   if (!db.workspaces[cleanEmail]) {
     db.workspaces[cleanEmail] = { projects: [], subscribers: [{ id: 'sub-self', name: name.trim(), email: cleanEmail, active: true }], logs: [] };
   }
   writeDB(db);
-  res.status(201).json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email } });
+  res.status(201).json({ success: true, user: { id: newUser.id, name: newUser.name, email: newUser.email, sessionToken } });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'Email and password are required.' });
@@ -523,16 +499,21 @@ app.post('/api/auth/login', (req, res) => {
   const db = readDB();
   const cleanEmail = email.trim().toLowerCase();
   const user = db.users.find(u => u.email === cleanEmail);
-  if (!user || user.password !== password) {
+  if (!user || !user.password) {
     return res.status(400).json({ error: 'Invalid email or password.' });
   }
+  const isMatch = await bcrypt.compare(password, user.password);
+  if (!isMatch) {
+    return res.status(400).json({ error: 'Invalid email or password.' });
+  }
+  const sessionToken = Math.random().toString(36).substr(2) + Date.now().toString(36);
   user.lastLoginAt = new Date().toISOString();
-  user.activeSession = true;
+  user.sessionToken = sessionToken;
   if (!db.workspaces[cleanEmail]) {
     db.workspaces[cleanEmail] = { projects: [], subscribers: [{ id: 'sub-self', name: user.name, email: cleanEmail, active: true }], logs: [] };
   }
   writeDB(db);
-  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, sessionToken } });
 });
 
 app.post('/api/auth/google', (req, res) => {
@@ -543,6 +524,7 @@ app.post('/api/auth/google', (req, res) => {
   const db = readDB();
   const cleanEmail = email.trim().toLowerCase();
   let user = db.users.find(u => u.email === cleanEmail);
+  const sessionToken = Math.random().toString(36).substr(2) + Date.now().toString(36);
   if (!user) {
     user = {
       id: 'usr-' + Math.random().toString(36).substr(2, 9),
@@ -552,57 +534,56 @@ app.post('/api/auth/google', (req, res) => {
       role: 'user',
       createdAt: new Date().toISOString(),
       lastLoginAt: new Date().toISOString(),
-      activeSession: true
+      sessionToken: sessionToken
     };
     db.users.push(user);
   } else {
     user.lastLoginAt = new Date().toISOString();
-    user.activeSession = true;
+    user.sessionToken = sessionToken;
   }
   if (!db.workspaces[cleanEmail]) {
     db.workspaces[cleanEmail] = { projects: [], subscribers: [{ id: 'sub-self', name: user.name, email: cleanEmail, active: true }], logs: [] };
   }
   writeDB(db);
-  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, sessionToken } });
 });
 
 app.get('/api/auth/session', (req, res) => {
-  const callerEmail = (req.headers['x-user-email'] || '').toLowerCase().trim();
-  if (!callerEmail) {
-    return res.status(401).json({ error: 'No active user.' });
+  const authToken = req.headers['x-auth-token'];
+  if (!authToken) {
+    return res.status(401).json({ error: 'No active user session.' });
   }
   const db = readDB();
-  const user = db.users.find(u => u.email === callerEmail);
+  const user = db.users.find(u => u.sessionToken === authToken);
   if (!user) {
-    return res.status(404).json({ error: 'Account not found.' });
+    return res.status(404).json({ error: 'Account not found or session expired.' });
   }
-  user.activeSession = true;
   user.lastLoginAt = new Date().toISOString();
   writeDB(db);
-  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, sessionToken: user.sessionToken } });
 });
 
 app.post('/api/auth/profile', (req, res) => {
-  const callerEmail = (req.headers['x-user-email'] || '').toLowerCase().trim();
+  const authToken = req.headers['x-auth-token'];
+  if (!authToken) return res.status(401).json({ error: 'Please sign in first.' });
   const { name, email } = req.body;
-  if (!callerEmail) return res.status(401).json({ error: 'Please sign in first.' });
   if (!name || !email) return res.status(400).json({ error: 'Name and email are required.' });
 
   const db = readDB();
-  const user = db.users.find(u => u.email === callerEmail);
+  const user = db.users.find(u => u.sessionToken === authToken);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
 
   const cleanEmail = email.trim().toLowerCase();
   const existing = db.users.find(u => u.email === cleanEmail && u.id !== user.id);
   if (existing) return res.status(400).json({ error: 'Another account already uses this email.' });
 
-  if (cleanEmail !== callerEmail) {
+  if (cleanEmail !== user.email) {
     if (db.workspaces && db.workspaces[cleanEmail]) {
       return res.status(400).json({ error: 'A workspace already exists for that email.' });
     }
-    if (db.workspaces && db.workspaces[callerEmail]) {
-      db.workspaces[cleanEmail] = db.workspaces[callerEmail];
-      delete db.workspaces[callerEmail];
+    if (db.workspaces && db.workspaces[user.email]) {
+      db.workspaces[cleanEmail] = db.workspaces[user.email];
+      delete db.workspaces[user.email];
     }
   }
 
@@ -611,32 +592,39 @@ app.post('/api/auth/profile', (req, res) => {
   user.role = cleanEmail === ADMIN_EMAIL ? 'admin' : (user.role === 'admin' ? 'user' : user.role);
   user.lastLoginAt = new Date().toISOString();
   writeDB(db);
-  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+  res.json({ success: true, user: { id: user.id, name: user.name, email: user.email, sessionToken: user.sessionToken } });
 });
 
-app.post('/api/auth/change-password', (req, res) => {
-  const callerEmail = (req.headers['x-user-email'] || '').toLowerCase().trim();
+app.post('/api/auth/change-password', async (req, res) => {
+  const authToken = req.headers['x-auth-token'];
+  if (!authToken) return res.status(401).json({ error: 'Please sign in first.' });
   const { currentPassword, newPassword } = req.body;
-  if (!callerEmail) return res.status(401).json({ error: 'Please sign in first.' });
   if (!newPassword || newPassword.length < 6) {
     return res.status(400).json({ error: 'New password must be at least 6 characters.' });
   }
 
   const db = readDB();
-  const user = db.users.find(u => u.email === callerEmail);
+  const user = db.users.find(u => u.sessionToken === authToken);
   if (!user) return res.status(404).json({ error: 'Account not found.' });
-  if (user.password && user.password !== currentPassword) {
+
+  if (user.password) { // Only check current password if one is set
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ error: 'Current password is incorrect.' });
+    }
+  } else if (currentPassword) { // User has no password (Google auth) but provided one
     return res.status(400).json({ error: 'Current password is incorrect.' });
   }
 
-  user.password = newPassword;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
   user.provider = user.provider || 'password';
   user.lastPasswordChangeAt = new Date().toISOString();
   writeDB(db);
   res.json({ success: true, message: 'Password changed successfully.' });
 });
 
-app.post('/api/auth/forgot-password', (req, res) => {
+app.post('/api/auth/forgot-password', async (req, res) => {
   const { email, newPassword } = req.body;
   if (!email || !newPassword) {
     return res.status(400).json({ error: 'Email and new password are required.' });
@@ -644,13 +632,13 @@ app.post('/api/auth/forgot-password', (req, res) => {
   if (newPassword.length < 6) {
     return res.status(400).json({ error: 'New password must be at least 6 characters.' });
   }
-
   const db = readDB();
   const cleanEmail = email.trim().toLowerCase();
   const user = db.users.find(u => u.email === cleanEmail);
   if (!user) return res.status(404).json({ error: 'No account exists for this email.' });
 
-  user.password = newPassword;
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  user.password = hashedPassword;
   user.provider = user.provider || 'password';
   user.lastPasswordResetAt = new Date().toISOString();
   writeDB(db);
@@ -659,13 +647,13 @@ app.post('/api/auth/forgot-password', (req, res) => {
 
 // Admin User Tracking Analytics — RESTRICTED to host only
 app.get('/api/admin/stats', (req, res) => {
-  const callerEmail = (req.headers['x-user-email'] || '').toLowerCase().trim();
-  if (callerEmail !== ADMIN_EMAIL) {
+  const ctx = getContextDB(req); // Use context to get authenticated user
+  if (!ctx || ctx.userEmail !== ADMIN_EMAIL) {
     return res.status(403).json({ error: 'Forbidden: Admin access only.' });
   }
   const db = readDB();
   const totalUsers = db.users.length;
-  const liveUsers = db.users.filter(u => u.activeSession === true).length;
+  const liveUsers = db.users.filter(u => u.sessionToken).length; // Count users with active session tokens
   res.json({
     totalUsers,
     liveUsers,
@@ -675,17 +663,21 @@ app.get('/api/admin/stats', (req, res) => {
 
 // Logout — clears active session flag
 app.post('/api/auth/logout', (req, res) => {
-  const callerEmail = (req.headers['x-user-email'] || '').toLowerCase().trim();
-  if (!callerEmail) return res.json({ success: true });
+  const authToken = req.headers['x-auth-token'];
+  if (!authToken) return res.json({ success: true }); // Already logged out or no token
   const db = readDB();
-  const user = db.users.find(u => u.email === callerEmail);
-  if (user) { user.activeSession = false; writeDB(db); }
+  const user = db.users.find(u => u.sessionToken === authToken);
+  if (user) { user.sessionToken = null; writeDB(db); }
+
   res.json({ success: true });
 });
 
 // Project lists (Context-aware per user)
 app.get('/api/projects', (req, res) => {
   const ctx = getContextDB(req);
+  if (!ctx) {
+    return res.json([]); // Should not happen if guest fallback works, but as a safeguard
+  }
   res.json(ctx.projects || []);
 });
 
@@ -696,6 +688,9 @@ app.post('/api/projects', (req, res) => {
     return res.status(400).json({ error: 'Project name and date are required.' });
   }
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'You must be logged in to add a project.' });
+  }
   const newProj = {
     id: 'proj-' + Math.random().toString(36).substr(2, 9),
     name: name.trim(),
@@ -713,6 +708,9 @@ app.post('/api/projects', (req, res) => {
 app.patch('/api/projects/:id/toggle-complete', (req, res) => {
   const { id } = req.params;
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
   const proj = ctx.projects.find(p => p.id === id);
   if (!proj) {
     return res.status(404).json({ error: 'Project not found.' });
@@ -730,6 +728,9 @@ app.post('/api/projects/:id/invite', (req, res) => {
     return res.status(400).json({ error: 'Email is required.' });
   }
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
   const proj = ctx.projects.find(p => p.id === id);
   if (!proj) {
     return res.status(404).json({ error: 'Project not found.' });
@@ -747,6 +748,9 @@ app.post('/api/projects/:id/invite', (req, res) => {
 app.delete('/api/projects/:id', (req, res) => {
   const { id } = req.params;
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
   const index = ctx.projects.findIndex(p => p.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Project not found.' });
@@ -759,6 +763,9 @@ app.delete('/api/projects/:id', (req, res) => {
 // Subscribers endpoints
 app.get('/api/subscribers', (req, res) => {
   const ctx = getContextDB(req);
+  if (!ctx) {
+    return res.json([]);
+  }
   res.json(ctx.subscribers || []);
 });
 
@@ -768,6 +775,9 @@ app.post('/api/subscribers', (req, res) => {
     return res.status(400).json({ error: 'Name and email are required.' });
   }
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'You must be logged in to add subscribers.' });
+  }
   const existing = ctx.subscribers.find(s => s.email.toLowerCase() === email.toLowerCase());
   if (existing) {
     return res.status(400).json({ error: 'Subscriber with this email already exists.' });
@@ -787,6 +797,9 @@ app.post('/api/subscribers', (req, res) => {
 app.delete('/api/subscribers/:id', (req, res) => {
   const { id } = req.params;
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'Authentication required.' });
+  }
   const index = ctx.subscribers.findIndex(s => s.id === id);
   if (index === -1) {
     return res.status(404).json({ error: 'Subscriber not found.' });
@@ -799,6 +812,9 @@ app.delete('/api/subscribers/:id', (req, res) => {
 // Reminders endpoints
 app.get('/api/reminders', (req, res) => {
   const ctx = getContextDB(req);
+  if (!ctx) {
+    return res.json([]);
+  }
   res.json(ctx.logs || []);
 });
 
@@ -806,6 +822,10 @@ app.get('/api/reminders', (req, res) => {
 app.post('/api/upload', upload.single('file'), (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded.' });
+  }
+  const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.status(401).json({ error: 'You must be logged in to upload projects.' });
   }
   try {
     const workbook = xlsx.readFile(req.file.path);
@@ -838,7 +858,6 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
       return res.status(400).json({ error: 'No valid projects found.' });
     }
 
-    const ctx = getContextDB(req);
     ctx.projects = parsedProjects;
     ctx.save();
 
@@ -856,7 +875,11 @@ app.get('/api/settings', (req, res) => {
 });
 
 app.post('/api/settings', (req, res) => {
-  const db = readDB();
+  const ctx = getContextDB(req);
+  if (!ctx || ctx.userEmail !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Forbidden: Admin access only.' });
+  }
+  const db = ctx.db; // Use the db object from context
   db.settings = { ...(db.settings || {}), ...req.body };
   writeDB(db);
   res.json({ success: true, settings: db.settings });
@@ -864,10 +887,17 @@ app.post('/api/settings', (req, res) => {
 
 // Trigger reminders scan manually
 app.post('/api/reminders/check', async (req, res) => {
+  const ctx = getContextDB(req);
+  if (!ctx || !ctx.userEmail) {
+    return res.status(401).json({ error: 'Authentication required to run a manual check.' });
+  }
   try {
-    const result = await checkAndSendReminders(true);
+    const workspace = ctx.db.workspaces[ctx.userEmail];
+    const result = await checkAndSendRemindersForWorkspace(workspace, ctx.userEmail, ctx.db);
+    ctx.save(); // Save any changes to the DB
     res.json(result);
   } catch (err) {
+    console.error(`[Manual Check Error] for ${ctx.userEmail}:`, err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -887,6 +917,9 @@ app.post('/api/chat', (req, res) => {
   }
 
   const ctx = getContextDB(req);
+  if (!ctx.userEmail) {
+    return res.json({ reply: "I can't access your workspace details. Please sign in to ask about your projects or team." });
+  }
   const query = message.toLowerCase();
   let reply = '';
 
@@ -912,13 +945,18 @@ app.post('/api/chat', (req, res) => {
   res.json({ reply });
 });
 
+// Health check endpoint for tests
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 // Setup server and start
 setupEmailTransporter().then(() => {
   app.listen(PORT, () => {
     console.log(`Project Reminder Agent backend running on port ${PORT}`);
     
     cron.schedule('0 0 * * *', () => {
-      checkAndSendReminders(false).catch(err => {
+      checkAndSendRemindersCron().catch(err => {
         console.error('Error running daily cron check:', err);
       });
     });

@@ -13,6 +13,21 @@ const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
 // Helper to wait
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Health check function
+async function waitForServer(url, timeout = 10000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    try {
+      const res = await fetch(`${url}/api/health`);
+      if (res.ok) return true;
+    } catch (e) {
+      // Server not ready yet
+    }
+    await sleep(500);
+  }
+  throw new Error('Server did not become ready within the timeout.');
+}
+
 async function runTests() {
   console.log('🚀 Starting integration tests for Project Reminder AI Agent...');
 
@@ -32,11 +47,13 @@ async function runTests() {
     console.error(`[Server stderr]: ${data.toString().trim()}`);
   });
 
-  // Give server 3 seconds to spin up
-  await sleep(3000);
+  // Wait for the server to be ready
+  console.log('Waiting for server to start...');
+  await waitForServer(BASE_URL);
+  console.log('Server is ready.');
 
   let success = true;
-
+  let sessionToken = null; // To store the session token for authenticated requests
   try {
     // 1. Reset Database
     console.log('\n--- Test 1: Reset Database ---');
@@ -48,22 +65,54 @@ async function runTests() {
       throw new Error(`Database reset failed: ${JSON.stringify(resetResult)}`);
     }
 
-    // 2. Fetch Initial Subscribers (should have the seeded subscriber)
-    console.log('\n--- Test 2: Fetch Subscribers ---');
-    const subRes = await fetch(`${BASE_URL}/api/subscribers`);
-    const subs = await subRes.json();
-    console.log(`Subscribers count: ${subs.length}`);
-    if (subs.length === 1 && subs[0].email === 'kushagra.sharma.ug25@nsut.ac.in') {
-      console.log('✅ Initial subscriber seed verified');
-    } else {
-      throw new Error('Initial subscriber seed verification failed');
-    }
-
-    // 3. Add a new subscriber
-    console.log('\n--- Test 3: Add Subscriber ---');
-    const addSubRes = await fetch(`${BASE_URL}/api/subscribers`, {
+    // 2. Register a user
+    console.log('\n--- Test 2: Register User ---');
+    const registerRes = await fetch(`${BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Test User', email: 'test@example.com', password: 'password123' })
+    });
+    const registerData = await registerRes.json();
+    if (registerRes.ok && registerData.user && registerData.user.sessionToken) {
+      console.log('✅ User registered successfully.');
+      sessionToken = registerData.user.sessionToken;
+    } else {
+      throw new Error(`User registration failed: ${JSON.stringify(registerData)}`);
+    }
+
+    // 3. Login with the registered user to get a session token
+    console.log('\n--- Test 3: Login User ---');
+    const loginRes = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'test@example.com', password: 'password123' })
+    });
+    const loginData = await loginRes.json();
+    if (loginRes.ok && loginData.user && loginData.user.sessionToken) {
+      console.log('✅ User logged in successfully.');
+      sessionToken = loginData.user.sessionToken;
+    } else {
+      throw new Error(`User login failed: ${JSON.stringify(loginData)}`);
+    }
+
+    // 4. Fetch Initial Subscribers (should be empty for a new user's workspace)
+    console.log('\n--- Test 4: Fetch Subscribers (empty for new user) ---');
+    const subRes = await fetch(`${BASE_URL}/api/subscribers`, {
+      headers: { 'x-auth-token': sessionToken }
+    });
+    const subs = await subRes.json();
+    console.log(`Subscribers count: ${subs.length}`);
+    if (subs.length === 1 && subs[0].email === 'test@example.com') { // New user gets themselves as a subscriber
+      console.log('✅ Initial subscriber for new user verified');
+    } else {
+      throw new Error('Initial subscriber for new user verification failed');
+    }
+
+    // 5. Add a new subscriber
+    console.log('\n--- Test 5: Add Subscriber ---');
+    const addSubRes = await fetch(`${BASE_URL}/api/subscribers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': sessionToken },
       body: JSON.stringify({ name: 'Test Team Member', email: 'team@company.com' })
     });
     const newSub = await addSubRes.json();
@@ -73,8 +122,8 @@ async function runTests() {
       throw new Error(`Failed to add subscriber: ${JSON.stringify(newSub)}`);
     }
 
-    // 4. Mock Excel Upload
-    console.log('\n--- Test 4: Parse Excel Schedule ---');
+    // 6. Mock Excel Upload
+    console.log('\n--- Test 6: Parse Excel Schedule ---');
     // Note: Node 18+ has built-in FormData, but to be safe and compatible with windows shells
     // we can read our projects_sample.xlsx binary directly and craft a boundary multipart/form-data request
     const filePath = path.join(__dirname, 'projects_sample.xlsx');
@@ -92,7 +141,8 @@ async function runTests() {
     const uploadRes = await fetch(`${BASE_URL}/api/upload`, {
       method: 'POST',
       headers: {
-        'Content-Type': `multipart/form-data; boundary=${boundary}`
+        'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        'x-auth-token': sessionToken
       },
       body: payload
     });
@@ -107,9 +157,12 @@ async function runTests() {
       throw new Error(`Upload parsing failed: ${JSON.stringify(uploadResult)}`);
     }
 
-    // 5. Trigger Reminders Scan Simulation
-    console.log('\n--- Test 5: Trigger Cron Reminder Check ---');
-    const checkRes = await fetch(`${BASE_URL}/api/reminders/check`, { method: 'POST' });
+    // 7. Trigger Reminders Scan Simulation
+    console.log('\n--- Test 7: Trigger Cron Reminder Check ---');
+    const checkRes = await fetch(`${BASE_URL}/api/reminders/check`, {
+      method: 'POST',
+      headers: { 'x-auth-token': sessionToken } // Authenticate cron check
+    });
     const checkResult = await checkRes.json();
     
     if (checkRes.ok && checkResult.success) {
@@ -118,23 +171,26 @@ async function runTests() {
       throw new Error(`Reminder scan simulation failed: ${JSON.stringify(checkResult)}`);
     }
 
-    // 6. Verify Email Logs
-    console.log('\n--- Test 6: Verify Notification Logs ---');
-    const logsRes = await fetch(`${BASE_URL}/api/reminders`);
+    // 8. Verify Email Logs
+    console.log('\n--- Test 8: Verify Notification Logs ---');
+    const logsRes = await fetch(`${BASE_URL}/api/reminders`, {
+      headers: { 'x-auth-token': sessionToken }
+    });
     const logs = await logsRes.json();
     console.log(`Total sent email logs in db: ${logs.length}`);
     
     // We expect log entries for projects that match the 30-day, 15-day, and 5-day warning dates.
-    // There are 2 active subscribers (kushagra@example.com and team@company.com)
+    // There are 2 active subscribers (test@example.com and team@company.com)
     // Three projects match warning windows (30 days, 15 days, 5 days).
-    // Total alerts sent should be 3 projects * 2 subscribers = 6 emails.
-    if (logs.length === 6) {
+    // Total alerts sent should be 3 projects * 2 subscribers = 6 emails (plus potential Slack/Twilio if configured)
+    const expectedLogCount = 6;
+    if (logs.length === expectedLogCount) {
       console.log('✅ Correct notification alerts sent (6 dispatches).');
       logs.forEach(log => {
         console.log(`   - To: ${log.subscriberEmail} | Project: "${log.projectName}" (${log.daysRemaining} days remaining) | Status: ${log.status}`);
       });
     } else {
-      console.warn(`⚠️ Warning: Expected 6 reminder logs, found ${logs.length}.`);
+      throw new Error(`⚠️ Test Assertion Failed: Expected ${expectedLogCount} reminder logs, but found ${logs.length}.`);
     }
 
     console.log('\n🎉 ALL INTEGRATION TESTS PASSED SUCCESSFULLY! 🎉');

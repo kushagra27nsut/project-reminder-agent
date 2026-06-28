@@ -11,9 +11,9 @@ let currentUser = null; // { name, email, id }
 /* ─────────────────────────────────────────────
    Helpers
 ───────────────────────────────────────────── */
-function getAuthHeaders() {
-  if (currentUser && currentUser.email) {
-    return { 'Content-Type': 'application/json', 'x-user-email': currentUser.email };
+function getAuthHeaders(includeToken = true) {
+  if (includeToken && currentUser && currentUser.sessionToken) {
+    return { 'Content-Type': 'application/json', 'x-auth-token': currentUser.sessionToken };
   }
   return { 'Content-Type': 'application/json' };
 }
@@ -250,11 +250,11 @@ async function continueWithSavedUser() {
   }
   try {
     const res = await fetch(`${API}/auth/session`, {
-      headers: { 'Content-Type': 'application/json', 'x-user-email': saved.email }
+      headers: getAuthHeaders() // Use the new auth headers with token
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Saved session is not available');
-    onLoginSuccess(data.user);
+    onLoginSuccess(data.user); // The user object from session includes the token
     document.getElementById('google-sso-modal').classList.remove('active');
     closeLoginPortal();
     showToast(`Welcome back, ${data.user.name}!`, 'success');
@@ -319,7 +319,7 @@ function initAuthPortal() {
     btn.disabled = true;
     try {
       const res = await fetch(`${API}/auth/login`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(false), // Don't send token for login
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
@@ -344,7 +344,7 @@ function initAuthPortal() {
     btn.disabled = true;
     try {
       const res = await fetch(`${API}/auth/forgot-password`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(false), // Don't send token for forgot password
         body: JSON.stringify({ email, newPassword })
       });
       const data = await res.json();
@@ -376,7 +376,7 @@ function initAuthPortal() {
     btn.disabled = true;
     try {
       const res = await fetch(`${API}/auth/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(false), // Don't send token for register
         body: JSON.stringify({ name, email, password })
       });
       const data = await res.json();
@@ -409,7 +409,7 @@ function initAuthPortal() {
     btn.disabled = true;
     try {
       const res = await fetch(`${API}/auth/google`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(false), // Don't send token for Google auth
         body: JSON.stringify({ name, email })
       });
       const data = await res.json();
@@ -430,7 +430,7 @@ function initAuthPortal() {
   const doLogout = async () => {
     if (currentUser) {
       try {
-        await fetch(`${API}/auth/logout`, { method: 'POST', headers: getAuthHeaders() });
+        await fetch(`${API}/auth/logout`, { method: 'POST', headers: getAuthHeaders() }); // Send token to invalidate
       } catch {}
     }
     currentUser = null;
@@ -448,7 +448,7 @@ function initAuthPortal() {
 /* ─────────────────────────────────────────────
    On Login Success — Update UI and Reload Data
 ───────────────────────────────────────────── */
-function onLoginSuccess(user) {
+function onLoginSuccess(user) { // User object now includes sessionToken
   currentUser = user;
   localStorage.setItem('remindai_user', JSON.stringify(user));
   updateProfilePill();
@@ -469,7 +469,7 @@ function updateProfilePill() {
   const settingsEmail = document.getElementById('settings-account-email');
 
   if (currentUser) {
-    nameEl.textContent = currentUser.name.split(' ')[0];
+    nameEl.textContent = currentUser.name ? currentUser.name.split(' ')[0] : 'User';
     const avatarSrc = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.name)}&background=6366f1&color=fff`;
     avatarEl.src = avatarSrc;
     if (settingsAvatar) settingsAvatar.src = avatarSrc;
@@ -478,7 +478,7 @@ function updateProfilePill() {
     if (settingsTitle) settingsTitle.textContent = currentUser.name;
     if (settingsEmail) settingsEmail.textContent = currentUser.email;
     if (document.getElementById('setting-user-name')) document.getElementById('setting-user-name').value = currentUser.name;
-    if (document.getElementById('setting-user-email')) document.getElementById('setting-user-email').value = currentUser.email;
+    if (document.getElementById('setting-user-email')) document.getElementById('setting-user-email').value = currentUser.email; // This will be read-only for Google users
     if (settingsLogout) settingsLogout.classList.remove('hidden');
     // Show admin panel ONLY for the host
     if (adminSection) adminSection.style.display = (currentUser.email.toLowerCase() === ADMIN_EMAIL) ? 'block' : 'none';
@@ -534,8 +534,8 @@ async function loadDashboard() {
       logsList.innerHTML = logs.slice(-5).reverse().map(log => `
         <div class="log-preview-item">
           <span class="log-dot ${log.status === 'success' ? 'dot-green' : 'dot-red'}"></span>
-          <span class="log-text">${escapeHtml(log.project || '—')} → <strong>${escapeHtml(log.to || '—')}</strong></span>
-          <span class="log-time">${formatDate(log.timestamp)}</span>
+          <span class="log-text">${escapeHtml(log.projectName || '—')} → <strong>${escapeHtml(log.subscriberEmail || '—')}</strong></span>
+          <span class="log-time">${formatDate(log.sentAt)}</span>
         </div>
       `).join('');
     } else {
@@ -728,11 +728,11 @@ async function loadLogs() {
     }
     tbody.innerHTML = [...logs].reverse().map(log => `
       <tr>
-        <td style="font-size:0.8rem; color:var(--text-muted)">${formatDate(log.timestamp)}</td>
-        <td><strong>${escapeHtml(log.project || '—')}</strong></td>
-        <td style="color:var(--cyan)">${escapeHtml(log.to || '—')}</td>
-        <td><span class="status-badge badge-active">${escapeHtml(String(log.daysLeft || '—'))}d</span></td>
-        <td><span class="status-badge ${log.status === 'success' ? 'badge-completed' : ''}" style="${log.status !== 'success' ? 'background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3)' : ''}">${log.status}</span></td>
+        <td style="font-size:0.8rem; color:var(--text-muted)">${formatDate(log.sentAt)}</td>
+        <td><strong>${escapeHtml(log.projectName || '—')}</strong></td>
+        <td style="color:var(--cyan)">${escapeHtml(log.subscriberEmail || '—')}</td>
+        <td><span class="status-badge badge-active">${escapeHtml(String(log.daysRemaining ?? '—'))}d</span></td>
+        <td><span class="status-badge ${log.status === 'success' ? 'badge-completed' : ''}" style="${log.status !== 'success' ? 'background:rgba(239,68,68,0.15);color:#ef4444;border-color:rgba(239,68,68,0.3)' : ''}">${log.status || 'N/A'}</span></td>
         <td>${log.previewUrl ? `<a href="${log.previewUrl}" target="_blank" class="btn btn-text btn-sm"><i class="fa-solid fa-eye"></i> Preview</a>` : '—'}</td>
       </tr>
     `).join('');
@@ -747,7 +747,7 @@ async function loadLogs() {
 async function loadSettings() {
   updateProfilePill();
   try {
-    const res = await fetch(`${API}/settings`);
+    const res = await fetch(`${API}/settings`, { headers: getAuthHeaders() });
     const data = await res.json();
     if (data.smtpUser) document.getElementById('setting-smtp-user').value = data.smtpUser;
     if (data.slackWebhook) document.getElementById('setting-slack-url').value = data.slackWebhook;
@@ -757,7 +757,8 @@ async function loadSettings() {
 async function loadAdminStats() {
   const listEl = document.getElementById('admin-user-list');
   if (!currentUser || currentUser.email.toLowerCase() !== ADMIN_EMAIL) {
-    if (listEl) listEl.innerHTML = `<div class="empty-state"><p>Host sign-in required for user analytics.</p></div>`;
+    // Only show this message if the element exists and user is not admin
+    if (listEl && currentUser) listEl.innerHTML = `<div class="empty-state"><p>Host sign-in required for user analytics.</p></div>`;
     return;
   }
   try {
@@ -804,7 +805,7 @@ function initSettingsForms() {
     const slackWebhook = document.getElementById('setting-slack-url').value.trim();
     try {
       const res = await fetch(`${API}/settings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: getAuthHeaders(),
         body: JSON.stringify({ smtpUser, slackWebhook })
       });
       if (!res.ok) throw new Error('Save failed');
@@ -865,13 +866,6 @@ function initSettingsForms() {
     }
   });
 
-  document.getElementById('profile-settings-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const name = document.getElementById('setting-user-name').value.trim();
-    const email = document.getElementById('setting-user-email').value.trim();
-    if (currentUser) { currentUser.name = name; currentUser.email = email; localStorage.setItem('remindai_user', JSON.stringify(currentUser)); updateProfilePill(); }
-    showToast('✅ Profile updated.', 'success');
-  });
 }
 
 /* ─────────────────────────────────────────────
@@ -975,7 +969,7 @@ async function uploadFile(file) {
   const progressContainer = document.getElementById('upload-progress');
   progressContainer.style.display = 'block';
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', file); // Ensure file is appended correctly
   const headers = {};
   if (currentUser && currentUser.email) headers['x-user-email'] = currentUser.email;
   try {
@@ -1045,7 +1039,7 @@ function initCronButton() {
     btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Scanning...';
     btn.disabled = true;
     try {
-      const res = await fetch(`${API}/reminders/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+      const res = await fetch(`${API}/reminders/check`, { method: 'POST', headers: getAuthHeaders() });
       const data = await res.json();
       showToast(`✅ Cron scan complete! Sent: ${data.sentCount || 0} reminder(s).`, 'success');
       loadDashboard();
@@ -1095,63 +1089,26 @@ function initModals() {
 }
 
 /* ─────────────────────────────────────────────
-   Add missing CSS helpers inline
+   Password Visibility Toggle
 ───────────────────────────────────────────── */
-function injectExtraStyles() {
-  const style = document.createElement('style');
-  style.textContent = `
-    .log-preview-item { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.05); font-size:0.88rem; }
-    .log-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-    .dot-green { background:var(--green); box-shadow:0 0 6px var(--green); }
-    .dot-red { background:var(--red); box-shadow:0 0 6px var(--red); }
-    .log-text { flex:1; color:var(--text-secondary); }
-    .log-time { font-size:0.75rem; color:var(--text-muted); }
-    .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:40px; color:var(--text-muted); font-size:1rem; }
-    .empty-state i { font-size:2.4rem; opacity:0.4; }
-    .loading-spinner { padding:24px; text-align:center; color:var(--text-muted); }
-    .progress-bar-container { margin-top:12px; }
-    .progress-bar { background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; height:8px; }
-    .progress-fill { background:linear-gradient(90deg,var(--cyan),var(--primary)); height:100%; width:60%; animation:progressAnim 1.2s infinite; }
-    .progress-status { font-size:0.82rem; color:var(--text-muted); margin-top:6px; }
-    @keyframes progressAnim { 0%{width:15%} 50%{width:80%} 100%{width:15%} }
-    .animate-pop { animation:popIn 0.4s cubic-bezier(0.16,1,0.3,1); }
-    @keyframes popIn { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
-    .animate-fade-in { animation:fadeIn 0.6s cubic-bezier(0.16,1,0.3,1); }
-    .card-header { margin-bottom:16px; }
-    .card-header h3 { font-size:1.15rem; font-weight:700; }
-    .card-header p { color:var(--text-secondary); font-size:0.88rem; margin-top:4px; }
-    .upload-card .card-header p { color:var(--text-secondary); font-size:0.88rem; }
-    .logs-preview-list { max-height:280px; overflow-y:auto; }
-    .layout-left, .layout-right { display:flex; flex-direction:column; }
-    .upload-card, .logs-preview-card { flex:1; }
-    .text-center { text-align:center; }
-    .logs-table { width:100%; border-collapse:collapse; }
-    .logs-table th { padding:12px 16px; font-size:0.8rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); border-bottom:1px solid var(--border-light); text-align:left; background:rgba(255,255,255,0.02); }
-    .logs-table td { padding:12px 16px; border-bottom:1px solid rgba(255,255,255,0.04); font-size:0.9rem; }
-    .logs-table tr:hover td { background:rgba(255,255,255,0.02); }
-    .logs-table-card { padding:0; overflow:hidden; }
-    .table-container { overflow-x:auto; }
-    .email-headers { background:rgba(255,255,255,0.04); border-radius:12px; padding:14px; margin-bottom:16px; display:flex; flex-direction:column; gap:6px; font-size:0.9rem; }
-    .email-preview-frame { width:100%; height:380px; border:1px solid var(--border-light); border-radius:12px; background:#fff; }
-    .modal-footer { margin-top:20px; display:flex; justify-content:flex-end; }
-    .google-auth-box { margin-bottom:16px; }
-    .saved-account-box { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px; margin-bottom:14px; border:1px solid var(--border-light); border-radius:12px; background:rgba(255,255,255,0.04); text-align:left; }
-    .saved-account-box.hidden { display:none; }
-    .saved-account-box strong, .saved-account-box small { display:block; }
-    .saved-account-box small { color:var(--text-muted); margin-top:2px; word-break:break-word; }
-    .saved-label { display:block; color:var(--text-secondary); font-size:0.72rem; font-weight:700; text-transform:uppercase; margin-bottom:2px; }
-    .link-button { margin-top:12px; border:0; background:transparent; color:var(--cyan); font-weight:700; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; }
-    .link-button:hover { color:#fff; }
-    .settings-overview { margin-bottom:24px; }
-    .account-summary-card { display:flex; align-items:center; gap:18px; padding:20px; }
-    .account-summary-avatar img { width:64px; height:64px; border-radius:50%; border:2px solid rgba(0,242,254,0.4); box-shadow:0 0 18px rgba(0,242,254,0.18); }
-    .settings-kicker { display:block; color:var(--text-muted); font-size:0.75rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:4px; }
-    .account-summary-card h3 { margin:0 0 4px; font-size:1.35rem; }
-    .account-summary-card p { margin:0; color:var(--text-secondary); word-break:break-word; }
-    .settings-card h3 { font-size:1.1rem; margin-bottom:16px; }
-    .admin-user-list { max-height:260px; overflow-y:auto; border-radius:12px; border:1px solid var(--border-light); }
-  `;
-  document.head.appendChild(style);
+function initPasswordVisibilityToggle() {
+  document.querySelectorAll('.toggle-password-visibility').forEach(button => {
+    button.addEventListener('click', () => {
+      const targetId = button.dataset.target;
+      const passwordInput = document.getElementById(targetId);
+      const icon = button.querySelector('i');
+
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+      } else {
+        passwordInput.type = 'password';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+      }
+    });
+  });
 }
 
 /* ─────────────────────────────────────────────
@@ -1173,7 +1130,7 @@ function restoreSession() {
    Bootstrap — Initialize everything on DOMContentLoaded
 ───────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
-  injectExtraStyles();
+  // injectExtraStyles(); // Removed, moved to styles.css
   restoreSession();
   initThreeJS();
   initNavigation();
@@ -1187,6 +1144,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCronButton();
   initResetDB();
   initSettingsForms();
+  initPasswordVisibilityToggle(); // Add this call
 
   // Initial data load
   loadDashboard();
