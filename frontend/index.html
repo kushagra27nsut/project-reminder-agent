@@ -381,9 +381,6 @@
                 <p>Online | Continuous Date Monitor</p>
               </div>
             </div>
-            <button id="btnResetDB" class="btn btn-danger-outline btn-sm">
-              <i class="fa-solid fa-trash-can"></i> Clear Database
-            </button>
           </div>
           
           <div id="chat-messages" class="chat-messages">
@@ -501,6 +498,15 @@
                 <i class="fa-solid fa-save"></i> Save Configuration
               </button>
             </form>
+          </div>
+
+          <!-- DANGER ZONE -->
+          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px; border-color: var(--red);">
+            <h3 style="color: var(--red);"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
+            <p style="color:var(--text-secondary); margin-bottom:16px;">These actions are destructive and cannot be undone. They affect the entire application for all users.</p>
+            <button id="btnResetDB" class="btn btn-danger-outline">
+              <i class="fa-solid fa-trash-can"></i> Reset Global Database
+            </button>
           </div>
 
         </div>

@@ -969,9 +969,11 @@ async function uploadFile(file) {
   const progressContainer = document.getElementById('upload-progress');
   progressContainer.style.display = 'block';
   const formData = new FormData();
-  formData.append('file', file); // Ensure file is appended correctly
+  formData.append('file', file);
   const headers = {};
-  if (currentUser && currentUser.email) headers['x-user-email'] = currentUser.email;
+  if (currentUser && currentUser.sessionToken) {
+    headers['x-auth-token'] = currentUser.sessionToken;
+  }
   try {
     const res = await fetch(`${API}/upload`, { method: 'POST', headers, body: formData });
     const data = await res.json();

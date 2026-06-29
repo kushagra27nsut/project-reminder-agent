@@ -46,24 +46,31 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 const getInitialDB = () => {
   const salt = bcrypt.genSaltSync(10);
   const adminPassword = bcrypt.hashSync('password123', salt);
-  return {
+  const adminEmail = 'kushagra.sharma.ug25@nsut.ac.in'; // Defined for clarity
+  const initialDB = {
     users: [
-      { id: 'usr-1', name: 'Kushagra Sharma', email: 'kushagra.sharma.ug25@nsut.ac.in', password: adminPassword, role: 'admin', createdAt: new Date().toISOString(), lastLoginAt: new Date().toISOString() }
+      { id: 'usr-1', name: 'Kushagra Sharma', email: adminEmail, password: adminPassword, role: 'admin', createdAt: new Date().toISOString(), lastLoginAt: new Date().toISOString() }
     ],
-  workspaces: {},
-  projects: [],
-  subscribers: [
-    { id: '1', name: 'Kushagra Sharma', email: 'kushagra.sharma.ug25@nsut.ac.in', phone: '+91 98765 43210', active: true }
-  ],
-  settings: {
-    smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
-    smtpPort: process.env.SMTP_PORT || '587',
-    smtpUser: process.env.SMTP_USER || 'kushagra.sharma.ug25@nsut.ac.in',
-    slackWebhook: process.env.SLACK_WEBHOOK_URL || '',
-    twilioSid: process.env.TWILIO_ACCOUNT_SID || ''
-  },
-  logs: []
-}};
+    workspaces: {},
+    settings: {
+      smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+      smtpPort: process.env.SMTP_PORT || '587',
+      smtpUser: process.env.SMTP_USER || 'kushagra.sharma.ug25@nsut.ac.in',
+      slackWebhook: process.env.SLACK_WEBHOOK_URL || '',
+      twilioSid: process.env.TWILIO_ACCOUNT_SID || ''
+    },
+    // No more global projects, subscribers, or logs
+  };
+  // Create the admin's workspace
+  initialDB.workspaces[adminEmail] = {
+    projects: [],
+    subscribers: [
+      { id: '1', name: 'Kushagra Sharma', email: adminEmail, phone: '+91 98765 43210', active: true }
+    ],
+    logs: []
+  };
+  return initialDB;
+};
 
 const readDB = () => {
   if (!fs.existsSync(DB_FILE)) {
@@ -89,25 +96,24 @@ const getContextDB = (req) => {
 
   if (authToken) {
     const user = db.users.find(u => u.sessionToken === authToken);
-    if (!user || !db.workspaces[user.email]) {
-      return null; // No valid user or workspace for this token
+    if (user && db.workspaces[user.email]) { // Check for user and their workspace
+      return {
+        db,
+        userEmail: user.email,
+        projects: db.workspaces[user.email].projects,
+        subscribers: db.workspaces[user.email].subscribers,
+        logs: db.workspaces[user.email].logs,
+        save: () => writeDB(db)
+      };
     }
-    return {
-      db,
-      userEmail: user.email, // Use email from the found user
-      projects: db.workspaces[user.email].projects,
-      subscribers: db.workspaces[user.email].subscribers,
-      logs: db.workspaces[user.email].logs,
-      save: () => writeDB(db)
-    };
   }
-  // Fallback for guest or invalid token
+  // Fallback for guest or invalid token: return an empty workspace context
   return {
     db,
     userEmail: null,
-    projects: db.projects || [],
-    subscribers: db.subscribers || [], // Guest mode uses global subscribers
-    logs: db.logs || [],
+    projects: [],
+    subscribers: [],
+    logs: [],
     save: () => writeDB(db)
   };
 };
@@ -296,20 +302,22 @@ const checkAndSendRemindersForWorkspace = async (workspace, workspaceEmail, db) 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   let sentCount = 0;
+  const projectsBySubscriber = {}; // Key: subscriber.email, Value: { subscriber, projects: [] }
+
   const activeSubscribers = workspace.subscribers ? workspace.subscribers.filter(s => s.active) : [];
-  if (activeSubscribers.length === 0) {
-    console.log(`[Workspace Check: ${workspaceEmail}] No active subscribers found.`);
-    return { success: true, sentCount: 0, message: 'No active subscribers in this workspace.' };
-  }
+
+  // Step 1: Collect all projects hitting a milestone for each subscriber
   for (const project of workspace.projects || []) {
     if (!project.date || project.completed) continue;
+
     const projDate = new Date(project.date);
     projDate.setHours(0, 0, 0, 0);
     const diffTime = projDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     const reminderMilestones = [30, 25, 20, 15, 10, 5, 0];
+
     if (reminderMilestones.includes(diffDays)) {
-      // Merge global subscribers with project-specific team members
+      // Determine recipients for this project
       const projectRecipients = [...activeSubscribers];
       if (project.teamMembers && Array.isArray(project.teamMembers)) {
         project.teamMembers.forEach(email => {
@@ -325,99 +333,115 @@ const checkAndSendRemindersForWorkspace = async (workspace, workspaceEmail, db) 
         });
       }
 
+      // Check for each recipient if this specific project reminder was already sent
       for (const subscriber of projectRecipients) {
-        // --- Email Dispatch ---
         const emailAlreadySent = (workspace.logs || []).some(
-          l => l.projectId === project.id && 
-               l.daysRemaining === diffDays && 
+          l => l.projectId === project.id &&
+               l.daysRemaining === diffDays &&
                l.subscriberEmail === subscriber.email &&
                l.status === 'success'
         );
+
         if (!emailAlreadySent) {
-          const mailOptions = {
-            from: '"Project RemindAI Agent" <agent@projectreminder.ai>',
-            to: subscriber.email,
-            subject: `⚠️ Reminder: "${project.name}" is in ${diffDays} Days!`,
-            html: `
-              <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #eaeaea; border-radius: 8px;">
-                <h2 style="color: #6366f1; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px;">Project Milestone Alert</h2>
-                <p>Hello <strong>${subscriber.name}</strong>,</p>
-                <p>This is your Project Reminder AI Agent. We are checking in on your upcoming project schedules.</p>
-                <div style="background-color: #f9fafb; padding: 15px; border-left: 4px solid #6366f1; border-radius: 4px; margin: 20px 0;">
-                  <p style="margin: 0 0 8px 0;"><strong>Project:</strong> ${project.name}</p>
-                  <p style="margin: 0 0 8px 0;"><strong>Date:</strong> ${project.date}</p>
-                  <p style="margin: 0;"><strong>Status:</strong> ${diffDays === 0 ? 'Starts Today!' : `Happening in <strong>${diffDays} days</strong>`}</p>
-                </div>
-                <p style="font-size: 0.9em; color: #6b7280;">You will receive ongoing reminders for this project every 5 days leading up to the start date.</p>
-                <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
-                <p style="font-size: 0.8em; color: #9ca3af; text-align: center;">Project RemindAI Agent Dashboard &copy; 2026</p>
-              </div>
-            `
-          };
-
-          try {
-            const info = await transporter.sendMail(mailOptions);
-            const previewUrl = nodemailer.getTestMessageUrl(info) || '#';
-            if (!workspace.logs) workspace.logs = [];
-            workspace.logs.unshift({
-              id: 'log-' + Math.random().toString(36).substr(2, 9),
-              projectId: project.id,
-              projectName: project.name,
-              projectDate: project.date,
-              subscriberEmail: subscriber.email,
-              daysRemaining: diffDays,
-              sentAt: new Date().toISOString(),
-              status: 'success',
-              previewUrl,
-              message: `Successfully sent email notification.`
-            });
-            sentCount++;
-            console.log(`[Workspace Check: ${workspaceEmail}] Email sent to ${subscriber.email} for "${project.name}" (Days: ${diffDays})`);
-          } catch (mailErr) {
-            console.error(`[Workspace Check: ${workspaceEmail}] Error sending email to ${subscriber.email}:`, mailErr);
-            if (!workspace.logs) workspace.logs = [];
-            workspace.logs.unshift({
-              id: 'log-' + Math.random().toString(36).substr(2, 9),
-              projectId: project.id,
-              projectName: project.name,
-              projectDate: project.date,
-              subscriberEmail: subscriber.email,
-              daysRemaining: diffDays,
-              sentAt: new Date().toISOString(),
-              status: 'failed',
-              message: mailErr.message
-            });
+          const subKey = subscriber.email.toLowerCase();
+          if (!projectsBySubscriber[subKey]) {
+            projectsBySubscriber[subKey] = { subscriber, projects: [] };
           }
+          projectsBySubscriber[subKey].projects.push({ ...project, diffDays });
         }
-        // --- Twilio WhatsApp Dispatch (If configured) ---
-        if (subscriber.phone && process.env.TWILIO_ACCOUNT_SID) {
-          const waAlreadySent = (workspace.logs || []).some(
-            l => l.projectId === project.id && 
-                 l.daysRemaining === diffDays && 
-                 l.subscriberEmail === `${subscriber.email} (WhatsApp)` &&
-                 l.status === 'success'
-          );
+      }
+    }
+  }
 
-          if (!waAlreadySent) {
-            try {
-              const waSuccess = await sendTwilioWhatsApp(subscriber, project, diffDays);
-              if (waSuccess) {
-                if (!workspace.logs) workspace.logs = [];
-                workspace.logs.unshift({
-                  id: 'log-' + Math.random().toString(36).substr(2, 9),
-                  projectId: project.id,
-                  projectName: project.name,
-                  projectDate: project.date,
-                  subscriberEmail: `${subscriber.email} (WhatsApp)`,
-                  daysRemaining: diffDays,
-                  sentAt: new Date().toISOString(),
-                  status: 'success',
-                  message: `Successfully sent automated Twilio WhatsApp text to ${subscriber.phone}.`
-                });
-                console.log(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp sent to ${subscriber.phone} for "${project.name}"`);
-              }
-            } catch (waErr) {
-              console.error(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp failed:`, waErr);
+  // Step 2: Send one digest email per subscriber
+  for (const subKey in projectsBySubscriber) {
+    const { subscriber, projects } = projectsBySubscriber[subKey];
+    if (projects.length === 0) continue;
+
+    const subject = projects.length > 1
+      ? `⚠️ Reminder: ${projects.length} project milestones are approaching!`
+      : `⚠️ Reminder: "${projects[0].name}" is in ${projects[0].diffDays} Days!`;
+
+    const projectListHtml = projects.map(p => `
+      <div style="background-color: #f9fafb; padding: 15px; border-left: 4px solid #6366f1; border-radius: 4px; margin: 15px 0;">
+        <p style="margin: 0 0 8px 0;"><strong>Project:</strong> ${p.name}</p>
+        <p style="margin: 0 0 8px 0;"><strong>Date:</strong> ${p.date}</p>
+        <p style="margin: 0;"><strong>Status:</strong> ${p.diffDays === 0 ? 'Starts Today!' : `Happening in <strong>${p.diffDays} days</strong>`}</p>
+      </div>
+    `).join('');
+
+    const mailOptions = {
+      from: '"Project RemindAI Agent" <agent@projectreminder.ai>',
+      to: subscriber.email,
+      subject: subject,
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #333; max-width: 600px; border: 1px solid #eaeaea; border-radius: 8px;">
+          <h2 style="color: #6366f1; border-bottom: 2px solid #f3f4f6; padding-bottom: 10px;">Project Milestone Alert</h2>
+          <p>Hello <strong>${subscriber.name}</strong>,</p>
+          <p>This is your Project Reminder AI Agent with an update on your upcoming project schedules.</p>
+          ${projectListHtml}
+          <p style="font-size: 0.9em; color: #6b7280;">You will receive ongoing reminders for these projects every 5 days leading up to their start date.</p>
+          <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 20px 0;" />
+          <p style="font-size: 0.8em; color: #9ca3af; text-align: center;">Project RemindAI Agent &copy; 2026</p>
+        </div>
+      `
+    };
+
+    try {
+      const info = await transporter.sendMail(mailOptions);
+      const previewUrl = nodemailer.getTestMessageUrl(info) || '#';
+      
+      // Log success for each project in the digest
+      for (const project of projects) {
+        if (!workspace.logs) workspace.logs = [];
+        workspace.logs.unshift({
+          id: 'log-' + Math.random().toString(36).substr(2, 9),
+          projectId: project.id,
+          projectName: project.name,
+          projectDate: project.date,
+          subscriberEmail: subscriber.email,
+          daysRemaining: project.diffDays,
+          sentAt: new Date().toISOString(),
+          status: 'success',
+          previewUrl,
+          message: `Successfully sent email notification as part of a digest.`
+        });
+        sentCount++; // Counting each project notification as one "sent" item
+      }
+      console.log(`[Workspace Check: ${workspaceEmail}] Digest email sent to ${subscriber.email} for ${projects.length} project(s)`);
+    } catch (mailErr) {
+      console.error(`[Workspace Check: ${workspaceEmail}] Error sending digest email to ${subscriber.email}:`, mailErr);
+      // Log failure for all projects that were supposed to be in the digest
+      for (const project of projects) {
+        if (!workspace.logs) workspace.logs = [];
+        workspace.logs.unshift({
+          id: 'log-' + Math.random().toString(36).substr(2, 9),
+          projectId: project.id,
+          projectName: project.name,
+          projectDate: project.date,
+          subscriberEmail: subscriber.email,
+          daysRemaining: project.diffDays,
+          sentAt: new Date().toISOString(),
+          status: 'failed',
+          message: `Digest email failed: ${mailErr.message}`
+        });
+      }
+    }
+
+    // --- Twilio WhatsApp Dispatch (still per-project) ---
+    for (const project of projects) {
+      if (subscriber.phone && process.env.TWILIO_ACCOUNT_SID) {
+        const waAlreadySent = (workspace.logs || []).some(
+          l => l.projectId === project.id &&
+               l.daysRemaining === project.diffDays &&
+               l.subscriberEmail === `${subscriber.email} (WhatsApp)` &&
+               l.status === 'success'
+        );
+
+        if (!waAlreadySent) {
+          try {
+            const waSuccess = await sendTwilioWhatsApp(subscriber, project, project.diffDays);
+            if (waSuccess) {
               if (!workspace.logs) workspace.logs = [];
               workspace.logs.unshift({
                 id: 'log-' + Math.random().toString(36).substr(2, 9),
@@ -425,18 +449,34 @@ const checkAndSendRemindersForWorkspace = async (workspace, workspaceEmail, db) 
                 projectName: project.name,
                 projectDate: project.date,
                 subscriberEmail: `${subscriber.email} (WhatsApp)`,
-                daysRemaining: diffDays,
+                daysRemaining: project.diffDays,
                 sentAt: new Date().toISOString(),
-                status: 'failed',
-                message: waErr.message
+                status: 'success',
+                message: `Successfully sent automated Twilio WhatsApp text to ${subscriber.phone}.`
               });
+              console.log(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp sent to ${subscriber.phone} for "${project.name}"`);
             }
+          } catch (waErr) {
+            console.error(`[Workspace Check: ${workspaceEmail}] Twilio WhatsApp failed:`, waErr);
+            if (!workspace.logs) workspace.logs = [];
+            workspace.logs.unshift({
+              id: 'log-' + Math.random().toString(36).substr(2, 9),
+              projectId: project.id,
+              projectName: project.name,
+              projectDate: project.date,
+              subscriberEmail: `${subscriber.email} (WhatsApp)`,
+              daysRemaining: project.diffDays,
+              sentAt: new Date().toISOString(),
+              status: 'failed',
+              message: waErr.message
+            });
           }
         }
       }
     }
   }
-  return { success: true, sentCount, message: `Successfully ran check. Sent ${sentCount} reminders.` };
+
+  return { success: true, sentCount, message: `Successfully ran check. Sent ${sentCount} project notifications.` };
 };
 
 // Trigger reminders calculation for all workspaces (for CRON)
@@ -858,7 +898,9 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
       return res.status(400).json({ error: 'No valid projects found.' });
     }
 
-    ctx.projects = parsedProjects;
+    // BUGFIX: Clear array by reference, then add new projects.
+    ctx.projects.length = 0;
+    parsedProjects.forEach(p => ctx.projects.push(p));
     ctx.save();
 
     res.json({ success: true, count: parsedProjects.length, projects: parsedProjects });
@@ -904,6 +946,10 @@ app.post('/api/reminders/check', async (req, res) => {
 
 // Clear logs and databases for debug/refresh
 app.post('/api/reset', (req, res) => {
+  const ctx = getContextDB(req); // Use context to get authenticated user
+  if (!ctx || ctx.userEmail !== ADMIN_EMAIL) {
+    return res.status(403).json({ error: 'Forbidden: Admin access only.' });
+  }
   const db = getInitialDB();
   writeDB(db);
   res.json({ success: true, message: 'Database reset to initial template.' });
