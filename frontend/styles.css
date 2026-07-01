@@ -24,8 +24,24 @@
   --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Utility */
+/* Utility Classes */
 .hidden { display: none !important; }
+.mb-2 { margin-bottom: 8px; }
+.mb-4 { margin-bottom: 16px; }
+.mb-6 { margin-bottom: 24px; }
+.mt-2 { margin-top: 8px; }
+.gap-4 { gap: 16px; }
+.flex-center-gap { display: flex; align-items: center; gap: 8px; }
+.flex-col-gap { display: flex; flex-direction: column; gap: 12px; }
+.modal-narrow { max-width: 420px; }
+.google-icon-small { width: 24px; height: 24px; }
+.heading-sm { font-size: 1.1rem; font-weight: 700; }
+.text-secondary-small { color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 16px; }
+.text-secondary-small-mb { color: var(--text-secondary); margin-bottom: 12px; }
+.text-secondary-small-mb-lg { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 20px; }
+.text-red { color: var(--red); }
+.text-cyan { color: var(--cyan); }
+.danger-zone { border-color: var(--red); }
 
 /* Navbar logout button — slim, compact */
 .btn-nav-logout {
@@ -100,8 +116,8 @@ body {
 /* Glassmorphism Navbar */
 .glass-navbar {
   background: rgba(11, 15, 30, 0.8);
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: 16px;
   padding: 14px 28px;
@@ -113,7 +129,7 @@ body {
 
 .logo { display: flex; align-items: center; gap: 12px; font-size: 1.4rem; font-weight: 800; letter-spacing: -0.5px; }
 .logo-icon { color: var(--cyan); filter: drop-shadow(0 0 8px var(--cyan)); }
-.logo-highlight { background: linear-gradient(135deg, var(--cyan), var(--primary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-highlight { background: linear-gradient(135deg, var(--cyan), var(--primary)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 
 .nav-links { display: flex; gap: 8px; }
 .nav-item {
@@ -184,8 +200,8 @@ body {
 /* Main Glass Cards */
 .glass-card {
   background: var(--bg-card);
-  backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: 20px;
   padding: 24px;
@@ -336,7 +352,7 @@ input:focus, select:focus, textarea:focus, .glow-form input:focus, .auth-form in
 .settings-actions { display: flex; gap: 12px; margin-top: 16px; }
 
 /* Google Auth Overlay */
-.login-portal-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(4, 6, 12, 0.88); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 1; transition: var(--transition); }
+.login-portal-overlay { position: fixed; inset: 0; z-index: 9999; background: rgba(4, 6, 12, 0.88); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); display: flex; align-items: center; justify-content: center; padding: 20px; opacity: 1; transition: var(--transition); }
 .login-portal-overlay.hidden { opacity: 0; pointer-events: none; }
 .login-card { width: 100%; max-width: 460px; text-align: center; border: 1px solid var(--border-glow); box-shadow: 0 0 60px rgba(99, 102, 241, 0.3); position: relative; padding: 32px 28px; }
 .close-login-modal { position: absolute; top: 16px; right: 20px; font-size: 1.6rem; cursor: pointer; color: var(--text-muted); transition: var(--transition); }
@@ -353,7 +369,7 @@ input:focus, select:focus, textarea:focus, .glow-form input:focus, .auth-form in
 .login-footer { margin-top: 24px; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
 
 /* Modals */
-.modal { display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(14px); align-items: center; justify-content: center; padding: 20px; }
+.modal { display: none; position: fixed; inset: 0; z-index: 10000; background: rgba(0, 0, 0, 0.75); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); align-items: center; justify-content: center; padding: 20px; }
 .modal.active { display: flex; animation: fadeIn 0.3s ease; }
 .modal-content { width: 100%; max-width: 540px; position: relative; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -370,6 +386,7 @@ input:focus, select:focus, textarea:focus, .glow-form input:focus, .auth-form in
 .compact-footer {
   margin-top: auto;
   background: rgba(11, 15, 30, 0.8);
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: 16px;

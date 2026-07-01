@@ -60,7 +60,7 @@
           <label for="login-password">Password</label>
           <div class="password-input-wrapper">
             <input type="password" id="login-password" placeholder="••••••••" required>
-            <button type="button" class="toggle-password-visibility" data-target="login-password">
+            <button type="button" class="toggle-password-visibility" data-target="login-password" title="Toggle password visibility">
               <i class="fa-solid fa-eye-slash"></i>
             </button>
           </div>
@@ -82,7 +82,7 @@
           <label for="forgot-password">New Password</label>
           <div class="password-input-wrapper">
             <input type="password" id="forgot-password" placeholder="At least 6 characters" minlength="6" required>
-            <button type="button" class="toggle-password-visibility" data-target="forgot-password">
+            <button type="button" class="toggle-password-visibility" data-target="forgot-password" title="Toggle password visibility">
               <i class="fa-solid fa-eye-slash"></i>
             </button>
           </div>
@@ -109,7 +109,7 @@
           <label for="reg-password">Set Password</label>
           <div class="password-input-wrapper">
             <input type="password" id="reg-password" placeholder="••••••••" required>
-            <button type="button" class="toggle-password-visibility" data-target="reg-password">
+            <button type="button" class="toggle-password-visibility" data-target="reg-password" title="Toggle password visibility">
               <i class="fa-solid fa-eye-slash"></i>
             </button>
           </div>
@@ -141,22 +141,22 @@
 
   <!-- Interactive Google SSO Account Modal -->
   <div id="google-sso-modal" class="modal">
-    <div class="modal-content glass-card animate-pop" style="max-width: 420px;">
+    <div class="modal-content glass-card animate-pop modal-narrow">
       <div class="modal-header">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <svg class="google-icon" viewBox="0 0 24 24" style="width:24px; height:24px;">
+        <div class="flex-center-gap">
+          <svg class="google-icon google-icon-small" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
           </svg>
-          <h3 style="font-size:1.1rem; font-weight:700;">Google Sign-In Authentication</h3>
+          <h3 class="heading-sm">Google Sign-In Authentication</h3>
         </div>
         <span class="close-modal">&times;</span>
       </div>
       <div class="modal-body">
-        <p style="color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 16px;">Select or enter your Google Account email to authorize access.</p>
-        <div id="google-saved-account" class="saved-account-box hidden" style="margin-bottom:16px;">
+        <p class="text-secondary-small">Select or enter your Google Account email to authorize access.</p>
+        <div id="google-saved-account" class="saved-account-box hidden mb-4">
           <div>
             <span class="saved-label">Last Google account</span>
             <strong id="google-saved-name">Guest</strong>
@@ -265,9 +265,9 @@
               <div id="drop-zone" class="drop-zone">
                 <i class="fa-regular fa-file-excel drop-icon"></i>
                 <p>Drag Excel file here or <span>browse files</span></p>
-                <input type="file" id="file-input" accept=".xlsx" style="display:none">
+                <input type="file" id="file-input" accept=".xlsx" class="hidden" title="Upload Excel file with project schedules" aria-label="Upload Excel file with project schedules">
               </div>
-              <div id="upload-progress" class="progress-bar-container" style="display:none">
+              <div id="upload-progress" class="progress-bar-container hidden">
                 <div class="progress-bar">
                   <div class="progress-fill"></div>
                 </div>
@@ -394,7 +394,7 @@
 
           <div class="chat-input-area">
             <input type="text" id="chat-input-field" placeholder="Ask about projects list, active subscribers, or next milestone...">
-            <button id="chat-send-btn" class="btn btn-primary btn-icon"><i class="fa-solid fa-paper-plane"></i></button>
+            <button id="chat-send-btn" class="btn btn-primary btn-icon" title="Send chat message"><i class="fa-solid fa-paper-plane"></i></button>
           </div>
         </div>
       </section>
@@ -450,10 +450,10 @@
         </div>
 
         <!-- ═══ ADMIN-ONLY BLOCK — host eyes only ═══ -->
-        <div id="admin-only-section" style="display:none;">
+        <div id="admin-only-section" class="hidden">
 
           <!-- Live user counters -->
-          <div class="metrics-grid" style="margin-bottom:24px;">
+          <div class="metrics-grid mb-6">
             <div class="metric-card glass-card">
               <div class="metric-icon icon-purple"><i class="fa-solid fa-users"></i></div>
               <div class="metric-info">
@@ -471,20 +471,20 @@
           </div>
 
           <!-- Registered user tracking table -->
-          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px;">
+          <div class="glass-card settings-card full-width-card mb-6">
             <h3><i class="fa-solid fa-users-viewfinder"></i> Registered User Tracking &amp; Activity Logs</h3>
-            <p style="color:var(--text-secondary); margin-bottom:12px;">Live stream of platform sign-ins and registered users.</p>
+            <p class="text-secondary-small-mb">Live stream of platform sign-ins and registered users.</p>
             <div id="admin-user-list" class="admin-user-list">
               <div class="loading-spinner"><i class="fa-solid fa-circle-notch fa-spin"></i> Fetching platform users...</div>
             </div>
           </div>
 
           <!-- Notification Integration Keys — admin only -->
-          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px;">
+          <div class="glass-card settings-card full-width-card mb-6">
             <h3><i class="fa-solid fa-sliders"></i> Notification Integration Keys</h3>
-            <p style="color:var(--text-secondary); margin-bottom:16px;">SMTP and Slack credentials for automated reminders. Visible only to the host.</p>
+            <p class="text-secondary-small-mb">SMTP and Slack credentials for automated reminders. Visible only to the host.</p>
             <form id="system-settings-form" class="glow-form">
-              <div class="settings-grid" style="gap:16px;">
+              <div class="settings-grid gap-4">
                 <div class="form-group">
                   <label for="setting-smtp-user">SMTP Email Account</label>
                   <input type="email" id="setting-smtp-user" placeholder="agent@gmail.com">
@@ -494,16 +494,16 @@
                   <input type="url" id="setting-slack-url" placeholder="https://hooks.slack.com/services/...">
                 </div>
               </div>
-              <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:8px;">
+              <button type="submit" class="btn btn-secondary btn-sm mt-2">
                 <i class="fa-solid fa-save"></i> Save Configuration
               </button>
             </form>
           </div>
 
           <!-- DANGER ZONE -->
-          <div class="glass-card settings-card full-width-card" style="margin-bottom:24px; border-color: var(--red);">
-            <h3 style="color: var(--red);"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
-            <p style="color:var(--text-secondary); margin-bottom:16px;">These actions are destructive and cannot be undone. They affect the entire application for all users.</p>
+          <div class="glass-card settings-card full-width-card mb-6 danger-zone">
+            <h3 class="text-red"><i class="fa-solid fa-triangle-exclamation"></i> Danger Zone</h3>
+            <p class="text-secondary-small-mb">These actions are destructive and cannot be undone. They affect the entire application for all users.</p>
             <button id="btnResetDB" class="btn btn-danger-outline">
               <i class="fa-solid fa-trash-can"></i> Reset Global Database
             </button>
@@ -532,8 +532,8 @@
           <!-- Session / Account Actions — visible to all -->
           <div class="glass-card settings-card">
             <h3><i class="fa-solid fa-circle-user"></i> Session &amp; Account</h3>
-            <p style="color:var(--text-secondary); font-size:0.9rem; margin-bottom:20px;">You are currently signed in as <strong id="settings-session-name" style="color:var(--cyan)">Guest</strong>.</p>
-            <div style="display:flex; flex-direction:column; gap:12px;">
+            <p class="text-secondary-small-mb-lg">You are currently signed in as <strong id="settings-session-name" class="text-cyan">Guest</strong>.</p>
+            <div class="flex-col-gap">
               <button id="btnTriggerLoginPortal" class="btn btn-primary">
                 <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign In / Switch Account
               </button>
@@ -550,7 +550,7 @@
                 <label for="current-password">Current Password</label>
                 <div class="password-input-wrapper">
                   <input type="password" id="current-password" placeholder="Leave blank if this account used Google first">
-                  <button type="button" class="toggle-password-visibility" data-target="current-password">
+                  <button type="button" class="toggle-password-visibility" data-target="current-password" title="Toggle password visibility">
                     <i class="fa-solid fa-eye-slash"></i>
                   </button>
                 </div>
@@ -559,7 +559,7 @@
                 <label for="new-password">New Password</label>
                 <div class="password-input-wrapper">
                   <input type="password" id="new-password" placeholder="At least 6 characters" minlength="6" required>
-                  <button type="button" class="toggle-password-visibility" data-target="new-password">
+                  <button type="button" class="toggle-password-visibility" data-target="new-password" title="Toggle password visibility">
                     <i class="fa-solid fa-eye-slash"></i>
                   </button>
                 </div>
@@ -586,7 +586,7 @@
           <span class="footer-sep">•</span>
           <a href="mailto:kushagra.sharma.ug25@nsut.ac.in"><i class="fa-regular fa-envelope"></i> kushagra.sharma.ug25@nsut.ac.in</a>
           <span class="footer-sep">•</span>
-          <a href="https://www.linkedin.com/in/kushagra-sharma-nsut" target="_blank"><i class="fa-brands fa-linkedin"></i> LinkedIn</a>
+          <a href="https://www.linkedin.com/in/kushagra-sharma-nsut" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-linkedin"></i> LinkedIn</a>
         </div>
 
         <div class="footer-honors">
@@ -662,7 +662,7 @@
           <div><strong>Subject:</strong> <span id="modal-subject"></span></div>
           <div><strong>Sent:</strong> <span id="modal-date"></span></div>
         </div>
-        <iframe id="email-preview-frame" class="email-preview-frame"></iframe>
+        <iframe id="email-preview-frame" class="email-preview-frame" title="Email reminder preview"></iframe>
         <div class="modal-footer">
           <a id="modal-ethereal-link" href="#" target="_blank" class="btn btn-primary"><i class="fa-solid fa-external-link"></i> View in Ethereal Mail Inbox</a>
         </div>
