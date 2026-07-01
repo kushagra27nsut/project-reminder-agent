@@ -208,7 +208,6 @@ function switchTab(tab) {
    Auth Portal (Login / Register)
 ───────────────────────────────────────────── */
 function openLoginPortal() {
-  refreshSavedAccountUI();
   document.getElementById('login-portal').classList.remove('hidden');
 }
 function closeLoginPortal() {
@@ -226,43 +225,7 @@ function getSavedUser() {
 }
 
 function refreshSavedAccountUI() {
-  const saved = getSavedUser();
-  const savedBox = document.getElementById('saved-account-box');
-  const googleBox = document.getElementById('google-saved-account');
-  const boxes = [savedBox, googleBox].filter(Boolean);
-  if (!saved || !saved.email) {
-    boxes.forEach(box => box.classList.add('hidden'));
-    return;
-  }
-
-  boxes.forEach(box => box.classList.remove('hidden'));
-  const nameTargets = ['saved-account-name', 'google-saved-name'];
-  const emailTargets = ['saved-account-email', 'google-saved-email'];
-  nameTargets.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = saved.name || saved.email; });
-  emailTargets.forEach(id => { const el = document.getElementById(id); if (el) el.textContent = saved.email; });
-}
-
-async function continueWithSavedUser() {
-  const saved = getSavedUser();
-  if (!saved || !saved.email) {
-    showToast('No saved account found. Please sign in once.', 'info');
-    return;
-  }
-  try {
-    const res = await fetch(`${API}/auth/session`, {
-      headers: getAuthHeaders() // Use the new auth headers with token
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Saved session is not available');
-    onLoginSuccess(data.user); // The user object from session includes the token
-    document.getElementById('google-sso-modal').classList.remove('active');
-    closeLoginPortal();
-    showToast(`Welcome back, ${data.user.name}!`, 'success');
-  } catch (err) {
-    localStorage.removeItem('remindai_user');
-    refreshSavedAccountUI();
-    showToast(`${err.message}. Please sign in again.`, 'error');
-  }
+  return;
 }
 
 function initAuthPortal() {
@@ -294,7 +257,6 @@ function initAuthPortal() {
     document.getElementById('auth-forgot-form').classList.add('hidden');
   });
 
-  document.getElementById('btnContinueSaved').addEventListener('click', continueWithSavedUser);
   document.getElementById('btnShowForgotPassword').addEventListener('click', () => {
     const saved = getSavedUser();
     document.getElementById('forgot-email').value = document.getElementById('login-email').value.trim() || (saved && saved.email) || '';
@@ -388,40 +350,6 @@ function initAuthPortal() {
       showToast(`❌ ${err.message}`, 'error');
     } finally {
       btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Workspace Account';
-      btn.disabled = false;
-    }
-  });
-
-  // Google Sign-In button opens secondary modal
-  document.getElementById('btnGoogleSignIn').addEventListener('click', () => {
-    refreshSavedAccountUI();
-    document.getElementById('google-sso-modal').classList.add('active');
-  });
-  document.getElementById('btnGoogleContinueSaved').addEventListener('click', continueWithSavedUser);
-
-  // Google Account form submit
-  document.getElementById('google-account-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const email = document.getElementById('google-account-email').value.trim();
-    const name = document.getElementById('google-account-name').value.trim();
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Authorizing...';
-    btn.disabled = true;
-    try {
-      const res = await fetch(`${API}/auth/google`, {
-        method: 'POST', headers: getAuthHeaders(false), // Don't send token for Google auth
-        body: JSON.stringify({ name, email })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Google auth failed');
-      document.getElementById('google-sso-modal').classList.remove('active');
-      onLoginSuccess(data.user);
-      closeLoginPortal();
-      showToast(`✅ Signed in as ${data.user.name} via Google.`, 'success');
-    } catch (err) {
-      showToast(`❌ ${err.message}`, 'error');
-    } finally {
-      btn.innerHTML = '<i class="fa-brands fa-google"></i> Authorize & Sign In';
       btn.disabled = false;
     }
   });

@@ -401,17 +401,43 @@ input:focus, select:focus, textarea:focus, .glow-form input:focus, .auth-form in
   flex-wrap: wrap;
 }
 .footer-brand { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 800; }
-.footer-creator { display: flex; align-items: center; gap: 8px; font-size: 0.88rem; color: var(--text-secondary); flex-wrap: wrap; }
-.footer-meta-label { color: var(--text-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
-.footer-creator strong { color: var(--cyan); font-weight: 700; }
-.footer-creator a { color: var(--text-secondary); text-decoration: none; transition: var(--transition); }
-.footer-creator a:hover { color: var(--cyan); text-decoration: underline; }
+.footer-creator { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: var(--text-secondary); flex-wrap: wrap; }
+.footer-meta-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+.footer-creator strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  padding: 4px 0;
+}
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  font-size: 0.88rem;
+}
+.footer-links a { color: var(--text-secondary); text-decoration: none; transition: var(--transition); }
+.footer-links a:hover { color: var(--cyan); text-decoration: underline; }
 .footer-sep { color: var(--text-muted); opacity: 0.5; }
 
-.honors-pill { background: linear-gradient(135deg, rgba(157, 78, 221, 0.15), rgba(99, 102, 241, 0.15)); border: 1px solid rgba(157, 78, 221, 0.3); border-radius: 20px; padding: 4px 14px; font-size: 0.82rem; color: var(--purple); }
-.honors-pill strong { color: var(--text-primary); }
-
 .footer-bottom-mini { border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 10px; padding-top: 8px; text-align: center; font-size: 0.75rem; color: var(--text-muted); }
+
+@media (max-width: 900px) {
+  .footer-compact-row { justify-content: center; text-align: center; }
+  .footer-creator, .footer-links { justify-content: center; }
+}
 
 /* Password Input Wrapper for Eye Button */
 .password-input-wrapper {
