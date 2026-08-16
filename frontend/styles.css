@@ -383,60 +383,161 @@ input:focus, select:focus, textarea:focus, .glow-form input:focus, .auth-form in
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 /* Bottom Credits Footer */
-.compact-footer {
+.app-footer {
   margin-top: auto;
-  background: rgba(11, 15, 30, 0.8);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.footer-glass-container {
+  width: 100%;
+  background: rgba(11, 15, 30, 0.85);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border: 1px solid var(--border-light);
   border-radius: 16px;
-  padding: 14px 24px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-}
-.footer-compact-row {
+  padding: 10px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.footer-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.footer-brand .logo-icon {
+  font-size: 1.05rem;
+  color: var(--cyan);
+  filter: drop-shadow(0 0 8px var(--cyan));
+}
+
+.footer-brand-text {
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.footer-center-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
   flex-wrap: wrap;
 }
-.footer-brand { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 800; }
-.footer-creator { display: flex; align-items: center; gap: 10px; font-size: 0.88rem; color: var(--text-secondary); flex-wrap: wrap; }
-.footer-meta-label {
+
+.footer-creator-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.footer-creator-label i {
+  font-size: 0.85rem;
+}
+
+.footer-creator-name {
+  color: var(--cyan);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.footer-sep {
+  color: var(--text-muted);
+  opacity: 0.4;
+  font-size: 0.95rem;
+}
+
+.footer-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: var(--transition);
+  font-size: 0.84rem;
+  white-space: nowrap;
+}
+
+.footer-link:hover {
+  color: var(--cyan);
+  text-decoration: underline;
+}
+
+.footer-link i {
+  font-size: 0.88rem;
+}
+
+.footer-thanks-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(147, 51, 234, 0.14);
+  border: 1px solid rgba(168, 85, 247, 0.38);
+  border-radius: 9999px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  box-shadow: 0 0 15px rgba(147, 51, 234, 0.12);
+  transition: var(--transition);
 }
-.footer-creator strong {
-  color: var(--text-primary);
+
+.footer-thanks-pill:hover {
+  border-color: rgba(168, 85, 247, 0.6);
+  box-shadow: 0 0 20px rgba(147, 51, 234, 0.22);
+}
+
+.footer-thanks-pill i {
+  color: #c084fc;
+  font-size: 0.85rem;
+}
+
+.footer-thanks-pill .thanks-label {
+  color: #d8b4fe;
+}
+
+.footer-thanks-pill strong {
+  color: #ffffff;
   font-weight: 700;
-  padding: 4px 0;
 }
-.footer-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  font-size: 0.88rem;
+
+.footer-copyright {
+  text-align: center;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  opacity: 0.75;
 }
-.footer-links a { color: var(--text-secondary); text-decoration: none; transition: var(--transition); }
-.footer-links a:hover { color: var(--cyan); text-decoration: underline; }
-.footer-sep { color: var(--text-muted); opacity: 0.5; }
 
-.footer-bottom-mini { border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 10px; padding-top: 8px; text-align: center; font-size: 0.75rem; color: var(--text-muted); }
+.footer-copyright p {
+  margin: 0;
+}
 
-@media (max-width: 900px) {
-  .footer-compact-row { justify-content: center; text-align: center; }
-  .footer-creator, .footer-links { justify-content: center; }
+@media (max-width: 1100px) {
+  .footer-glass-container {
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    gap: 12px;
+    padding: 16px 20px;
+  }
+  .footer-center-info {
+    justify-content: center;
+  }
 }
 
 /* Password Input Wrapper for Eye Button */
